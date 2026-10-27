@@ -26,6 +26,7 @@ import {
   Building
 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+import { PersonalProjectListModal } from './PersonalProjectListModal';
 import { Learner, LearnerStatus, Gender, AppSettings, AttendanceRecord, Violation } from '../types';
 import { generateNextRegistrationNumber } from '../utils/storage';
 import { 
@@ -100,6 +101,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
     stream: string;
     status: LearnerStatus;
     notes: string;
+    personalProject: string;
   }>({
     registrationNumber: '',
     arabicName: '',
@@ -117,6 +119,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
     stream: settings.streams[0] || 'المعلوماتيات والرقمنة',
     status: 'نشط',
     notes: '',
+    personalProject: 'غير محدد',
   });
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -133,6 +136,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
 
   // Import modal state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isPersonalProjectModalOpen, setIsPersonalProjectModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ParsedImportResult | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -336,6 +340,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
       stream: settings.streams[0] || 'المعلوماتيات والرقمنة',
       status: 'نشط',
       notes: '',
+      personalProject: 'غير محدد',
     });
     setFormError(null);
   };
@@ -383,6 +388,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
       stream: learner.stream,
       status: learner.status,
       notes: learner.notes || '',
+      personalProject: learner.personalProject || 'غير محدد',
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -463,6 +469,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
                 status: formData.status,
                 createdAt: formData.createdAt,
                 notes: formData.notes.trim(),
+                personalProject: formData.personalProject as any,
               }
             : l
         )
@@ -491,6 +498,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
         status: formData.status,
         createdAt: formData.createdAt,
         notes: formData.notes.trim(),
+        personalProject: formData.personalProject as any,
       };
 
       setLearners((prev) => [newLearner, ...prev]);
@@ -542,6 +550,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
       status: formData.status,
       createdAt: formData.createdAt,
       notes: formData.notes.trim(),
+      personalProject: formData.personalProject as any,
     };
 
     const updatedLearners = [newLearner, ...learners];
@@ -693,8 +702,15 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* Reusable Confirm Dialog */}
-      <ConfirmDialog
+      {/* Personal Project List Modal */}
+      <PersonalProjectListModal
+        isOpen={isPersonalProjectModalOpen}
+        onClose={() => setIsPersonalProjectModalOpen(false)}
+        learners={learners}
+        settings={settings}
+      />
+
+        <ConfirmDialog
         isOpen={confirmConfig.isOpen}
         onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
         onConfirm={confirmConfig.onConfirm}
@@ -755,6 +771,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
               <th className="p-2 border border-slate-400">القسم</th>
               <th className="p-2 border border-slate-400">الشعبة / الحرفة</th>
               <th className="p-2 border border-slate-400">المستوى السابق</th>
+              <th className="p-2 border border-slate-400">المشروع الشخصي</th>
             </tr>
           </thead>
           <tbody>
@@ -767,6 +784,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
                 <td className="p-2 border border-slate-300">{learner.className}</td>
                 <td className="p-2 border border-slate-300">{learner.stream}</td>
                 <td className="p-2 border border-slate-300">{learner.previousLevel}</td>
+                <td className="p-2 border border-slate-300 font-bold">{learner.personalProject || 'غير محدد'}</td>
               </tr>
             ))}
           </tbody>
@@ -818,6 +836,15 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>إضافة متعلم جديد</span>
+          </button>
+
+          {/* Personal Project List button */}
+          <button
+            onClick={() => setIsPersonalProjectModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all"
+          >
+            <FileText className="w-4 h-4" />
+            <span>لائحة المشروع الشخصي</span>
           </button>
 
           {/* Bulk Delete Button */}
@@ -968,6 +995,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
                   <th className="p-4 text-right">الجنس</th>
                   <th className="p-4 text-right">القسم والشعبة</th>
                   <th className="p-4 text-right">المستوى السابق</th>
+                  <th className="p-4 text-right">المشروع الشخصي</th>
                   <th className="p-4 text-right">الاتصال</th>
                   <th className="p-4 text-right">الحالة</th>
                   <th className="p-4 text-center">الإجراءات</th>
@@ -1036,6 +1064,19 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
                       {/* Previous Level */}
                       <td className="p-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                         {learner.previousLevel}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          learner.personalProject === 'الإدماج المدرسي' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800' :
+                          learner.personalProject === 'التكوين المهني' 
+                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-200 dark:border-orange-800' :
+                          learner.personalProject === 'سوق الشغل' 
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' :
+                          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                        }`}>
+                          {learner.personalProject || 'غير محدد'}
+                        </span>
                       </td>
 
                       {/* Phone & WhatsApp */}
@@ -1442,6 +1483,23 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
                       <option value="نشط">نشط (مستمر بانتظام)</option>
                       <option value="منقطع">منقطع (توقف مؤقت)</option>
                       <option value="مغادر">مغادر (تم نقله أو مغادرته)</option>
+                    </select>
+                  </div>
+
+                  {/* Personal Project Choice */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      المشروع الشخصي للمتعلم <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={formData.personalProject}
+                      onChange={(e) => setFormData({ ...formData, personalProject: e.target.value })}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold text-indigo-600 dark:text-indigo-400"
+                    >
+                      <option value="غير محدد">غير محدد</option>
+                      <option value="الإدماج المدرسي">الإدماج المدرسي</option>
+                      <option value="التكوين المهني">التكوين المهني</option>
+                      <option value="سوق الشغل">سوق الشغل</option>
                     </select>
                   </div>
 

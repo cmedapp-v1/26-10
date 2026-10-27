@@ -30,7 +30,8 @@ import {
   SessionType, 
   AppSettings,
   Learner,
-  AttendanceRecord
+  AttendanceRecord,
+  Animator
 } from '../types';
 import { WeeklyCallSheetModal } from './WeeklyCallSheetModal';
 
@@ -42,6 +43,8 @@ interface WeeklyScheduleProps {
   settings: AppSettings;
   learners?: Learner[];
   attendance?: AttendanceRecord[];
+  animators?: Animator[];
+  initialAnimatorFilter?: string;
   onOpenAttendanceForSession?: (session: ScheduledSession, dateStr: string) => void;
 }
 
@@ -65,6 +68,8 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
   settings,
   learners = [],
   attendance = [],
+  animators = [],
+  initialAnimatorFilter,
   onOpenAttendanceForSession,
 }) => {
   // Current active week offset (0 = current week, -1 = last week, +1 = next week)
@@ -77,6 +82,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
   const [filterClass, setFilterClass] = useState<string>('الكل');
   const [filterStream, setFilterStream] = useState<string>('الكل');
   const [filterType, setFilterType] = useState<string>('الكل');
+  const [filterAnimator, setFilterAnimator] = useState<string>(initialAnimatorFilter || 'الكل');
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -110,6 +116,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
     sessionType: SessionType;
     subject: string;
     animator: string;
+    animatorId?: string;
     classes: string[];
     streams: string[];
     isRecurring: boolean;
@@ -121,6 +128,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
     sessionType: 'التأهيل التربوي',
     subject: '',
     animator: '',
+    animatorId: '',
     classes: [],
     streams: [],
     isRecurring: true,
@@ -189,9 +197,10 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
       if (filterClass !== 'الكل' && !s.classes.includes(filterClass)) return false;
       if (filterStream !== 'الكل' && !s.streams.includes(filterStream)) return false;
       if (filterType !== 'الكل' && s.sessionType !== filterType) return false;
+      if (filterAnimator !== 'الكل' && s.animator !== filterAnimator) return false;
       return true;
     });
-  }, [schedule, filterClass, filterStream, filterType]);
+  }, [schedule, filterClass, filterStream, filterType, filterAnimator]);
 
   // Open modal to create session
   const handleOpenAddModal = (defaultDay?: string, defaultTime?: SessionTime) => {
@@ -203,6 +212,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
       sessionType: 'التأهيل التربوي',
       subject: '',
       animator: '',
+      animatorId: '',
       classes: settings.classes.length > 0 ? [settings.classes[0]] : [],
       streams: settings.streams.length > 0 ? [settings.streams[0]] : [],
       isRecurring: true,
@@ -222,6 +232,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
       sessionType: session.sessionType,
       subject: session.subject,
       animator: session.animator,
+      animatorId: session.animatorId || '',
       classes: session.classes,
       streams: session.streams,
       isRecurring: session.isRecurring,
@@ -252,6 +263,20 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
       setFormError('يرجى إدخال اسم المنشط أو المؤطر.');
       return;
     }
+
+    // Check if selected animator is inactive or suspended
+    if (animators && animators.length > 0) {
+      const chosen = animators.find(
+        (a) =>
+          (formData.animatorId && a.id === formData.animatorId) ||
+          a.arabicName.trim().toLowerCase() === formData.animator.trim().toLowerCase()
+      );
+      if (chosen && chosen.status !== 'نشط') {
+        setFormError(`المنشط «${chosen.arabicName}» في وضعية (${chosen.status}) ولا يمكن برمجة حصص جديدة له. يرجى تفعيل وضعيته أولاً في قسم تدبير المنشطين.`);
+        return;
+      }
+    }
+
     if (formData.classes.length === 0) {
       setFormError('يرجى تحديد قسم واحد على الأقل.');
       return;
@@ -278,9 +303,13 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
       if (existing.dayOfWeek === formData.dayOfWeek) {
         // Check if times overlap
         if (isTimeSlotOverlap(existing.timeSlot, formData.timeSlot)) {
-          // Check animator conflict
-          if (existing.animator.trim().toLowerCase() === formData.animator.trim().toLowerCase()) {
-            setFormError(`تعارض في الجدول: المنشط (${formData.animator}) لديه حصة أخرى في نفس الوقت (${existing.timeSlot}) بـ ${existing.dayOfWeek}.`);
+          // Check animator conflict by ID or normalized name
+          const isSameAnimator =
+            (existing.animatorId && formData.animatorId && existing.animatorId === formData.animatorId) ||
+            existing.animator.trim().toLowerCase() === formData.animator.trim().toLowerCase();
+
+          if (isSameAnimator) {
+            setFormError(`تعارض في الجدول: المنشط (${formData.animator}) لديه حصة أخرى (${existing.subject}) في نفس الوقت (${existing.timeSlot}) بـ ${existing.dayOfWeek}.`);
             return;
           }
 
@@ -574,6 +603,22 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
                 <option value="التأهيل التربوي">التأهيل التربوي</option>
                 <option value="التأهيل المهني">التأهيل المهني</option>
               </select>
+
+              {/* Animator Filter */}
+              {animators && animators.length > 0 && (
+                <select
+                  value={filterAnimator}
+                  onChange={(e) => setFilterAnimator(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 max-w-[150px] truncate"
+                >
+                  <option value="الكل">جميع المنشطين</option>
+                  {animators.map((a) => (
+                    <option key={a.id} value={a.arabicName}>
+                      {a.arabicName}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
           </div>
@@ -1004,13 +1049,50 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     المنشط أو المؤطر المسؤول <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={formData.animator}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, animator: e.target.value }))}
-                    placeholder="مثال: أ. طارق التازي"
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder:text-slate-400"
-                  />
+                  {animators && animators.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <select
+                        value={formData.animatorId || (animators.find((a) => a.arabicName === formData.animator)?.id || '')}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          const found = animators.find((a) => a.id === selectedId);
+                          if (found) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              animator: found.arabicName,
+                              animatorId: found.id,
+                              sessionType: found.activityType || prev.sessionType,
+                            }));
+                          } else {
+                            setFormData((prev) => ({ ...prev, animatorId: '' }));
+                          }
+                        }}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="">-- اختر من لائحة المنشطين --</option>
+                        {animators.map((a) => (
+                          <option key={a.id} value={a.id} disabled={a.status !== 'نشط'}>
+                            {a.arabicName} — {a.specialty} ({a.status})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={formData.animator}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, animator: e.target.value, animatorId: '' }))}
+                        placeholder="أو اكتب اسم المنشط يدوياً"
+                        className="w-full p-2 bg-slate-50 dark:bg-slate-800 text-[11px] font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={formData.animator}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, animator: e.target.value }))}
+                      placeholder="مثال: أ. طارق التازي"
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder:text-slate-400"
+                    />
+                  )}
                 </div>
               </div>
 

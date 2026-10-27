@@ -1,5 +1,5 @@
-import { Learner, AttendanceRecord, AppSettings, ScheduledSession, Holiday, BackupData, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit } from '../types';
-import { DEFAULT_SETTINGS, SAMPLE_LEARNERS, generateSampleAttendanceRecords, SAMPLE_SCHEDULE, SAMPLE_HOLIDAYS, SAMPLE_VIOLATIONS, SAMPLE_COMMITMENTS } from './initialData';
+import { Learner, AttendanceRecord, AppSettings, ScheduledSession, Holiday, BackupData, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit, Animator } from '../types';
+import { DEFAULT_SETTINGS, SAMPLE_LEARNERS, generateSampleAttendanceRecords, SAMPLE_SCHEDULE, SAMPLE_HOLIDAYS, SAMPLE_VIOLATIONS, SAMPLE_COMMITMENTS, SAMPLE_ANIMATORS } from './initialData';
 
 const SETTINGS_KEY = 'e2s_zirara_settings';
 const LEARNERS_KEY = 'e2s_zirara_learners';
@@ -10,6 +10,7 @@ const VIOLATIONS_KEY = 'e2s_zirara_violations';
 const COMMITMENTS_KEY = 'e2s_zirara_commitments';
 const EXIT_PAPERS_KEY = 'e2s_zirara_exit_papers';
 const INFIRMARY_VISITS_KEY = 'e2s_zirara_infirmary_visits';
+const ANIMATORS_KEY = 'e2s_zirara_animators';
 
 // ... existing getters ...
 
@@ -37,6 +38,41 @@ export const getStoredInfirmaryVisits = (): InfirmaryVisit[] => {
 
 export const saveStoredInfirmaryVisits = (visits: InfirmaryVisit[]): void => {
   localStorage.setItem(INFIRMARY_VISITS_KEY, JSON.stringify(visits));
+};
+
+export const getStoredAnimators = (): Animator[] => {
+  try {
+    const data = localStorage.getItem(ANIMATORS_KEY);
+    if (!data) {
+      const initial = SAMPLE_ANIMATORS;
+      localStorage.setItem(ANIMATORS_KEY, JSON.stringify(initial));
+      return initial;
+    }
+    return JSON.parse(data);
+  } catch {
+    return SAMPLE_ANIMATORS;
+  }
+};
+
+export const saveStoredAnimators = (animators: Animator[]): void => {
+  localStorage.setItem(ANIMATORS_KEY, JSON.stringify(animators));
+};
+
+export const generateNextAnimatorNumber = (existingAnimators: Animator[]): string => {
+  let maxNum = 0;
+  existingAnimators.forEach((a) => {
+    if (a.registrationNumber) {
+      const match = a.registrationNumber.match(/ANM-(\d+)/i);
+      if (match) {
+        const numPart = parseInt(match[1], 10);
+        if (!isNaN(numPart) && numPart > maxNum) {
+          maxNum = numPart;
+        }
+      }
+    }
+  });
+  const nextNum = maxNum + 1;
+  return `ANM-${nextNum.toString().padStart(3, '0')}`;
 };
 
 // ... existing exportFullBackup and restoreFullBackup ...
@@ -253,7 +289,7 @@ export const generateNextInfirmaryVisitNumber = (visits: InfirmaryVisit[], year?
 
 export const exportFullBackup = (data?: BackupData): void => {
   const backupData: BackupData = data || {
-    version: '1.5',
+    version: '1.6',
     exportDate: new Date().toISOString(),
     settings: getStoredSettings(),
     learners: getStoredLearners(),
@@ -264,6 +300,7 @@ export const exportFullBackup = (data?: BackupData): void => {
     commitments: getStoredCommitments(),
     exitPapers: getStoredExitPapers(),
     infirmaryVisits: getStoredInfirmaryVisits(),
+    animators: getStoredAnimators(),
   };
 
   const jsonStr = JSON.stringify(backupData, null, 2);
@@ -299,6 +336,7 @@ export const restoreFullBackup = (
     commitments: CommitmentRecord[];
     exitPapers: ExitPaper[];
     infirmaryVisits: InfirmaryVisit[];
+    animators: Animator[];
   } 
 } => {
   try {
@@ -317,6 +355,7 @@ export const restoreFullBackup = (
     const commitments = parsed.commitments || SAMPLE_COMMITMENTS;
     const exitPapers = parsed.exitPapers || [];
     const infirmaryVisits = parsed.infirmaryVisits || [];
+    const animators = parsed.animators || SAMPLE_ANIMATORS;
 
     saveStoredSettings(settings);
     saveStoredLearners(learners);
@@ -327,11 +366,12 @@ export const restoreFullBackup = (
     saveStoredCommitments(commitments);
     saveStoredExitPapers(exitPapers);
     saveStoredInfirmaryVisits(infirmaryVisits);
+    saveStoredAnimators(animators);
 
     return {
       success: true,
       message: 'تمت استعادة البيانات بنجاح!',
-      data: { settings, learners, attendance, schedule, holidays, violations, commitments, exitPapers, infirmaryVisits },
+      data: { settings, learners, attendance, schedule, holidays, violations, commitments, exitPapers, infirmaryVisits, animators },
     };
   } catch {
     return {
@@ -349,6 +389,9 @@ export const resetToDemoData = (): {
   holidays: Holiday[];
   violations: Violation[];
   commitments: CommitmentRecord[];
+  exitPapers: ExitPaper[];
+  infirmaryVisits: InfirmaryVisit[];
+  animators: Animator[];
 } => {
   const settings = DEFAULT_SETTINGS;
   const learners = SAMPLE_LEARNERS;
@@ -357,6 +400,9 @@ export const resetToDemoData = (): {
   const holidays = SAMPLE_HOLIDAYS;
   const violations = SAMPLE_VIOLATIONS;
   const commitments = SAMPLE_COMMITMENTS;
+  const exitPapers: ExitPaper[] = [];
+  const infirmaryVisits: InfirmaryVisit[] = [];
+  const animators = SAMPLE_ANIMATORS;
 
   saveStoredSettings(settings);
   saveStoredLearners(learners);
@@ -365,7 +411,10 @@ export const resetToDemoData = (): {
   saveStoredHolidays(holidays);
   saveStoredViolations(violations);
   saveStoredCommitments(commitments);
+  saveStoredExitPapers(exitPapers);
+  saveStoredInfirmaryVisits(infirmaryVisits);
+  saveStoredAnimators(animators);
 
-  return { settings, learners, attendance, schedule, holidays, violations, commitments };
+  return { settings, learners, attendance, schedule, holidays, violations, commitments, exitPapers, infirmaryVisits, animators };
 };
 

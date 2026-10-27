@@ -2,6 +2,7 @@ import React from 'react';
 import { 
   LayoutDashboard, 
   Users, 
+  UserCheck,
   ClipboardCheck, 
   History, 
   Settings, 
@@ -36,9 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'tracking', label: 'تدبير الغيابات', icon: <History className="w-5 h-5" /> },
     { id: 'violations', label: 'المخالفات', icon: <ShieldAlert className="w-5 h-5" /> },
     { id: 'reports', label: 'التقارير والإحصائيات', icon: <FileText className="w-5 h-5" /> },
-    { id: 'data_correction', label: 'تصحيح البيانات', icon: <ShieldAlert className="w-5 h-5 text-amber-500" /> },
     { id: 'settings', label: 'الإعدادات', icon: <Settings className="w-5 h-5" /> },
-    { id: 'backup', label: 'النسخ الاحتياطي', icon: <LayoutDashboard className="w-5 h-5" /> },
   ];
 
   return (

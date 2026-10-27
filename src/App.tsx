@@ -18,19 +18,22 @@ import {
   saveStoredExitPapers,
   getStoredInfirmaryVisits,
   saveStoredInfirmaryVisits,
+  getStoredAnimators,
+  saveStoredAnimators,
   exportFullBackup
 } from './utils/storage';
-import { TabType, AppSettings, Learner, AttendanceRecord, ScheduledSession, Holiday, SessionTime, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit } from './types';
+import { TabType, AppSettings, Learner, AttendanceRecord, ScheduledSession, Holiday, SessionTime, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit, Animator } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { LearnerManagement } from './components/LearnerManagement';
+import { AnimatorManagement } from './components/AnimatorManagement';
 import { AttendanceRecording } from './components/AttendanceRecording';
 import { WeeklySchedule } from './components/WeeklySchedule';
 import { AbsenceTracking } from './components/AbsenceTracking';
 import { ViolationsManagement } from './components/ViolationsManagement';
 import { Reports } from './components/Reports';
 import { Backup } from './components/Backup';
-import { Settings } from './components/Settings';
+import { Settings, SettingsSubTab } from './components/Settings';
 import { OfficialHeader } from './components/OfficialHeader';
 import { DataCorrection } from './components/DataCorrection';
 
@@ -69,6 +72,19 @@ export default function App() {
   const [commitments, setCommitments] = useState<CommitmentRecord[]>(getStoredCommitments);
   const [exitPapers, setExitPapers] = useState<ExitPaper[]>(getStoredExitPapers);
   const [infirmaryVisits, setInfirmaryVisits] = useState<InfirmaryVisit[]>(getStoredInfirmaryVisits);
+  const [animators, setAnimators] = useState<Animator[]>(getStoredAnimators);
+
+  // Active settings subtab for direct routing
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('general');
+
+  // Quick jump state for schedule filtered by a specific animator
+  const [scheduleAnimatorFilter, setScheduleAnimatorFilter] = useState<string | null>(null);
+
+  // Direct jump to Settings -> Animators
+  const handleOpenAnimatorsSettings = () => {
+    setSettingsSubTab('animators');
+    setActiveTab('settings');
+  };
 
   // Quick jump state for violations filtered on a single learner
   const [selectedLearnerForViolations, setSelectedLearnerForViolations] = useState<string | null>(null);
@@ -91,6 +107,10 @@ export default function App() {
   useEffect(() => {
     saveStoredLearners(learners);
   }, [learners]);
+
+  useEffect(() => {
+    saveStoredAnimators(animators);
+  }, [animators]);
 
   useEffect(() => {
     saveStoredAttendance(attendance);
@@ -119,6 +139,12 @@ export default function App() {
   useEffect(() => {
     saveStoredInfirmaryVisits(infirmaryVisits);
   }, [infirmaryVisits]);
+
+  // Handler to navigate to schedule pre-filtered by animator
+  const handleNavigateToScheduleForAnimator = (animatorName?: string) => {
+    setScheduleAnimatorFilter(animatorName || null);
+    setActiveTab('schedule');
+  };
 
   // Handler to jump to learner violations
   const handleViewLearnerViolations = (learnerId: string) => {
@@ -187,7 +213,9 @@ export default function App() {
             learners={learners}
             attendance={attendance}
             settings={settings}
+            animators={animators}
             setActiveTab={setActiveTab}
+            onOpenAnimators={handleOpenAnimatorsSettings}
           />
         )}
 
@@ -202,6 +230,17 @@ export default function App() {
             onViewLearnerViolations={handleViewLearnerViolations}
             onAddNewViolationForLearner={handleViewLearnerViolations}
             onCreateCommitmentForLearner={handleCreateCommitmentForLearner}
+          />
+        )}
+
+        {activeTab === 'animators' && (
+          <AnimatorManagement
+            animators={animators}
+            setAnimators={setAnimators}
+            schedule={schedule}
+            setSchedule={setSchedule}
+            settings={settings}
+            onNavigateToSchedule={handleNavigateToScheduleForAnimator}
           />
         )}
 
@@ -224,6 +263,8 @@ export default function App() {
             holidays={holidays}
             setHolidays={setHolidays}
             settings={settings}
+            animators={animators}
+            initialAnimatorFilter={scheduleAnimatorFilter || undefined}
             onOpenAttendanceForSession={handleOpenAttendanceForSession}
           />
         )}
@@ -268,45 +309,7 @@ export default function App() {
             exitPapers={exitPapers}
             infirmaryVisits={infirmaryVisits}
             settings={settings}
-          />
-        )}
-
-        {activeTab === 'backup' && (
-          <Backup 
-            settings={settings}
-            learners={learners}
-            attendance={attendance}
-            schedule={schedule}
-            holidays={holidays}
-            violations={violations}
-            commitments={commitments}
-            exitPapers={exitPapers}
-            infirmaryVisits={infirmaryVisits}
-            setSettings={setSettings}
-            setLearners={setLearners}
-            setAttendance={setAttendance}
-            setSchedule={setSchedule}
-            setHolidays={setHolidays}
-            setViolations={setViolations}
-            setCommitments={setCommitments}
-            setExitPapers={setExitPapers}
-            setInfirmaryVisits={setInfirmaryVisits}
-          />
-        )}
-
-        {activeTab === 'data_correction' && (
-          <DataCorrection 
-            learners={learners}
-            setLearners={setLearners}
-            attendance={attendance}
-            setAttendance={setAttendance}
-            violations={violations}
-            setViolations={setViolations}
-            exitPapers={exitPapers}
-            setExitPapers={setExitPapers}
-            infirmaryVisits={infirmaryVisits}
-            setInfirmaryVisits={setInfirmaryVisits}
-            settings={settings}
+            animators={animators}
           />
         )}
 
@@ -314,12 +317,26 @@ export default function App() {
           <Settings
             settings={settings}
             setSettings={setSettings}
+            learners={learners}
             setLearners={setLearners}
+            attendance={attendance}
             setAttendance={setAttendance}
+            schedule={schedule}
             setSchedule={setSchedule}
+            holidays={holidays}
             setHolidays={setHolidays}
+            violations={violations}
             setViolations={setViolations}
+            commitments={commitments}
             setCommitments={setCommitments}
+            exitPapers={exitPapers}
+            setExitPapers={setExitPapers}
+            infirmaryVisits={infirmaryVisits}
+            setInfirmaryVisits={setInfirmaryVisits}
+            animators={animators}
+            setAnimators={setAnimators}
+            initialSubTab={settingsSubTab}
+            onNavigateToSchedule={handleNavigateToScheduleForAnimator}
           />
         )}
         

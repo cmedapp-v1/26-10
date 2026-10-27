@@ -12,24 +12,29 @@ import {
   ArrowRight,
   Send,
   Calendar,
-  ShieldAlert
+  ShieldAlert,
+  UserCheck
 } from 'lucide-react';
-import { Learner, AttendanceRecord, AppSettings, TabType } from '../types';
+import { Learner, AttendanceRecord, AppSettings, TabType, Animator } from '../types';
 
 interface DashboardProps {
   learners: Learner[];
   attendance: AttendanceRecord[];
   settings: AppSettings;
+  animators?: Animator[];
   setActiveTab: (tab: TabType) => void;
   onSelectLearnerForTracking?: (learnerId: string) => void;
+  onOpenAnimators?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   learners,
   attendance,
   settings,
+  animators = [],
   setActiveTab,
   onSelectLearnerForTracking,
+  onOpenAnimators,
 }) => {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -193,6 +198,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           >
             <ShieldAlert className="w-4 h-4" />
             <span>المخالفات</span>
+          </button>
+          <button
+            onClick={() => onOpenAnimators ? onOpenAnimators() : setActiveTab('settings')}
+            className="flex items-center gap-2 px-5 py-3 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-2xl font-bold text-sm border border-blue-200 dark:border-blue-800 transition-all"
+          >
+            <UserCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>المنشطون ({animators.filter(a => a.status === 'نشط').length} نشط)</span>
           </button>
         </div>
       </div>

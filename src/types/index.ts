@@ -4,6 +4,8 @@ export type AttendanceStatus = 'حاضر' | 'غائب' | 'متأخر' | 'غيا�
 export type SessionTime = '09:00–13:00' | '09:00–11:00' | '11:00–13:00' | '14:00–16:00' | string;
 export type SessionType = 'التأهيل التربوي' | 'التأهيل المهني';
 
+export type PersonalProjectPath = 'الإدماج المدرسي' | 'التكوين المهني' | 'سوق الشغل' | 'غير محدد';
+
 export interface Learner {
   id: string;
   registrationNumber: string; // e.g. "ZR-0001"
@@ -22,6 +24,7 @@ export interface Learner {
   birthDate?: string;
   birthPlace?: string;
   notes?: string;
+  personalProject?: PersonalProjectPath;
 }
 
 export interface AttendanceRecord {
@@ -39,6 +42,26 @@ export interface AttendanceRecord {
   updatedAt: string;
 }
 
+export type AnimatorStatus = 'نشط' | 'غير نشط' | 'متوقف عن العمل';
+
+export interface Animator {
+  id: string;
+  registrationNumber: string; // e.g. "ANM-001"
+  arabicName: string;
+  frenchName?: string;
+  phone: string;
+  email?: string;
+  specialty: string; // مجال التكوين أو التخصص
+  activityType: SessionType; // 'التأهيل التربوي' | 'التأهيل المهني'
+  assignedClasses: string[];
+  assignedStreams: string[];
+  startDate: string; // YYYY-MM-DD
+  status: AnimatorStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface ScheduledSession {
   id: string;
   dayOfWeek: 'الاثنين' | 'الثلاثاء' | 'الأربعاء' | 'الخميس' | 'الجمعة' | string;
@@ -46,6 +69,7 @@ export interface ScheduledSession {
   sessionType: SessionType;
   subject: string; // المادة أو النشاط
   animator: string; // المنشط / المؤطر
+  animatorId?: string; // معرف المنشط المرتبط
   classes: string[]; // الأقسام المرتبطة
   streams: string[]; // الشعب المرتبطة
   isRecurring: boolean;
@@ -150,6 +174,7 @@ export interface BackupData {
   commitments?: CommitmentRecord[];
   exitPapers?: ExitPaper[];
   infirmaryVisits?: InfirmaryVisit[];
+  animators?: Animator[];
 }
 
 export interface ExitPaper {
@@ -197,5 +222,5 @@ export interface InfirmaryVisit {
   createdAt: string;
 }
 
-export type TabType = 'dashboard' | 'students' | 'attendance' | 'schedule' | 'tracking' | 'violations' | 'reports' | 'backup' | 'data_correction' | 'settings';
+export type TabType = 'dashboard' | 'students' | 'animators' | 'schedule' | 'attendance' | 'tracking' | 'violations' | 'reports' | 'backup' | 'data_correction' | 'settings';
 

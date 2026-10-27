@@ -16,6 +16,9 @@ export interface ReportStats {
   monthlyAttendance: { month: string; rate: number }[];
   distributionByClass: { name: string; count: number }[];
   distributionByGender: { name: string; count: number }[];
+  distributionByPersonalProject: { name: string; count: number; percentage: number }[];
+  projectByGender: { project: string; male: number; female: number }[];
+  projectByStream: { project: string; streams: Record<string, number> }[];
 }
 
 export const calculateReportStats = (
@@ -25,7 +28,7 @@ export const calculateReportStats = (
   exitPapers: ExitPaper[] = [],
   infirmaryVisits: InfirmaryVisit[] = [],
   dateRange?: { start: string; end: string },
-  filters?: { className?: string; stream?: string }
+  filters?: { className?: string; stream?: string; personalProject?: string }
 ): ReportStats => {
   // Apply filters
   let filteredLearners = [...learners];
@@ -54,6 +57,20 @@ export const calculateReportStats = (
     filteredViolations = filteredViolations.filter(v => v.stream === filters.stream);
     filteredExitPapers = filteredExitPapers.filter(e => e.stream === filters.stream);
     filteredInfirmaryVisits = filteredInfirmaryVisits.filter(i => i.stream === filters.stream);
+  }
+
+  if (filters?.personalProject) {
+    const targetProj = filters.personalProject;
+    if (targetProj === 'غير محدد') {
+      filteredLearners = filteredLearners.filter(l => !l.personalProject || l.personalProject === 'غير محدد');
+    } else {
+      filteredLearners = filteredLearners.filter(l => l.personalProject === targetProj);
+    }
+    const matchingIds = new Set(filteredLearners.map(l => l.id));
+    filteredAttendance = filteredAttendance.filter(a => matchingIds.has(a.learnerId));
+    filteredViolations = filteredViolations.filter(v => !v.learnerId || matchingIds.has(v.learnerId));
+    filteredExitPapers = filteredExitPapers.filter(e => !e.learnerId || matchingIds.has(e.learnerId));
+    filteredInfirmaryVisits = filteredInfirmaryVisits.filter(i => !i.learnerId || matchingIds.has(i.learnerId));
   }
 
   if (dateRange) {
@@ -109,6 +126,64 @@ export const calculateReportStats = (
     genderDist[l.gender] = (genderDist[l.gender] || 0) + 1;
   });
 
+  const projectDist: Record<string, number> = {
+    'الإدماج المدرسي': 0,
+    'التكوين المهني': 0,
+    'سوق الشغل': 0,
+    'غير محدد': 0
+  };
+
+  const projectGenderMap: Record<string, { male: number; female: number }> = {
+    'الإدماج المدرسي': { male: 0, female: 0 },
+    'التكوين المهني': { male: 0, female: 0 },
+    'سوق الشغل': { male: 0, female: 0 },
+    'غير محدد': { male: 0, female: 0 }
+  };
+
+  const projectStreamMap: Record<string, Record<string, number>> = {
+    'الإدماج المدرسي': {},
+    'التكوين المهني': {},
+    'سوق الشغل': {},
+    'غير محدد': {}
+  };
+
+  filteredLearners.forEach(l => {
+    const proj = l.personalProject || 'غير محدد';
+    projectDist[proj] = (projectDist[proj] || 0) + 1;
+
+    if (!projectGenderMap[proj]) {
+      projectGenderMap[proj] = { male: 0, female: 0 };
+    }
+    if (l.gender === 'أنثى') {
+      projectGenderMap[proj].female++;
+    } else {
+      projectGenderMap[proj].male++;
+    }
+
+    if (!projectStreamMap[proj]) {
+      projectStreamMap[proj] = {};
+    }
+    const st = l.stream || 'غير محدد';
+    projectStreamMap[proj][st] = (projectStreamMap[proj][st] || 0) + 1;
+  });
+
+  const distributionByPersonalProject = Object.entries(projectDist).map(([name, count]) => ({
+    name,
+    count,
+    percentage: totalLearners > 0 ? Math.round((count / totalLearners) * 100) : 0
+  }));
+
+  const projectByGender = Object.entries(projectGenderMap).map(([project, g]) => ({
+    project,
+    male: g.male,
+    female: g.female
+  }));
+
+  const projectByStream = Object.entries(projectStreamMap).map(([project, streams]) => ({
+    project,
+    streams
+  }));
+
   return {
     totalLearners,
     activeLearners: active,
@@ -124,9 +199,13 @@ export const calculateReportStats = (
     dropoutRate,
     monthlyAttendance,
     distributionByClass: Object.entries(classDist).map(([name, count]) => ({ name, count })),
-    distributionByGender: Object.entries(genderDist).map(([name, count]) => ({ name, count }))
+    distributionByGender: Object.entries(genderDist).map(([name, count]) => ({ name, count })),
+    distributionByPersonalProject,
+    projectByGender,
+    projectByStream
   };
 };
+
 export interface BranchMonthlyStats {
   stream: string;
   learnerCount: number;
@@ -143,10 +222,23 @@ export const calculateBranchMonthlyStats = (
   learners: Learner[],
   attendance: AttendanceRecord[],
   month: string, // YYYY-MM
-  className?: string
+  className?: string,
+  personalProject?: string
 ): BranchMonthlyStats[] => {
-  const filteredAttendance = attendance.filter(a => a.date.startsWith(month));
-  
+  let filteredAttendance = attendance.filter(a => a.date.startsWith(month));
+  let filteredLearners = [...learners];
+
+  if (personalProject) {
+    if (personalProject === 'غير محدد') {
+      filteredLearners = filteredLearners.filter(l => !l.personalProject || l.personalProject === 'غير محدد');
+    } else {
+      filteredLearners = filteredLearners.filter(l => l.personalProject === personalProject);
+    }
+  }
+
+  const validLearnerIds = new Set(filteredLearners.map(l => l.id));
+  filteredAttendance = filteredAttendance.filter(a => validLearnerIds.has(a.learnerId));
+
   // Group by stream
   const streamStats: Record<string, { 
     learnerIds: Set<string>;
@@ -157,7 +249,7 @@ export const calculateBranchMonthlyStats = (
   }> = {};
 
   filteredAttendance.forEach(a => {
-    const learner = learners.find(l => l.id === a.learnerId);
+    const learner = filteredLearners.find(l => l.id === a.learnerId);
     if (!learner) return;
     if (className && learner.className !== className) return;
 

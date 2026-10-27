@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Learner, AttendanceRecord, Gender, Violation, CommitmentRecord } from '../types';
+import { Learner, AttendanceRecord, Gender, Violation, CommitmentRecord, Animator } from '../types';
 
 export const exportLearnersToExcel = (learners: Learner[], filename = 'تدبير_المتعلمين_قائمة_المتعلمين_زرارة.xlsx') => {
   const exportData = learners.map((l, index) => ({
@@ -16,6 +16,7 @@ export const exportLearnersToExcel = (learners: Learner[], filename = 'تدبي�
     'رقم واتساب': l.whatsapp,
     'العنوان': l.address,
     'الحالة': l.status,
+    'المشروع الشخصي': l.personalProject || 'غير محدد',
     'تاريخ التسجيل': l.createdAt,
   }));
 
@@ -77,6 +78,7 @@ export const downloadLearnersTemplate = () => {
       'الاسم بالفرنسية': 'Ahmed Essoussi',
       'المستوى السابق': 'الثالثة إعدادي',
       'العنوان': 'زيرارة المركز',
+      'المشروع الشخصي': 'التكوين المهني',
     },
     {
       'الاسم الكامل': 'ليلى العمراني',
@@ -244,6 +246,12 @@ export const parseLearnersFile = (file: File, existingLearners: Learner[] = []):
             cellStr.includes('address')
           ) {
             headerIndexMap['address'] = colIdx;
+          } else if (
+            cellStr.includes('مشروع') || 
+            cellStr.includes('personal') || 
+            cellStr.includes('project')
+          ) {
+            headerIndexMap['personalProject'] = colIdx;
           }
         });
 
@@ -263,23 +271,26 @@ export const parseLearnersFile = (file: File, existingLearners: Learner[] = []):
           let phoneRaw = '';
           let address = '';
 
+          let personalProject: string = 'غير محدد';
           if (hasHeaders) {
             arabicName = headerIndexMap['arabicName'] !== undefined ? row[headerIndexMap['arabicName']] : '';
             frenchName = headerIndexMap['frenchName'] !== undefined ? row[headerIndexMap['frenchName']] : '';
             masarCode = headerIndexMap['masarCode'] !== undefined ? row[headerIndexMap['masarCode']] : '';
             genderRaw = headerIndexMap['gender'] !== undefined ? row[headerIndexMap['gender']] : '';
             className = headerIndexMap['className'] !== undefined ? row[headerIndexMap['className']] : '';
-            stream = headerIndexMap['stream'] !== undefined ? row[headerIndexMap['stream']] : '';
             phoneRaw = headerIndexMap['phone'] !== undefined ? row[headerIndexMap['phone']] : '';
             address = headerIndexMap['address'] !== undefined ? row[headerIndexMap['address']] : '';
+            const projRaw = headerIndexMap['personalProject'] !== undefined ? row[headerIndexMap['personalProject']] : '';
+            personalProject = String(projRaw || 'غير محدد').trim();
           } else {
-            // Positional fallback: [0: Name, 1: Masar, 2: Gender, 3: Class, 4: Stream, 5: Phone]
+            // Positional fallback
             arabicName = row[0] || '';
             masarCode = row[1] || '';
             genderRaw = row[2] || '';
             className = row[3] || '';
             stream = row[4] || '';
             phoneRaw = row[5] || '';
+            personalProject = String(row[6] || 'غير محدد');
           }
 
           // Clean values
@@ -327,6 +338,7 @@ export const parseLearnersFile = (file: File, existingLearners: Learner[] = []):
             whatsapp: cleanPhone,
             address: String(address || 'زيرارة').trim(),
             status: 'نشط',
+            personalProject: personalProject as any,
           });
         }
 
@@ -520,5 +532,37 @@ export const exportCommitmentsToCsv = (
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+export const exportAnimatorsToExcel = (
+  animators: Animator[],
+  filename = 'تدبير_المنشطين_مركز_زرارة.xlsx'
+) => {
+  const exportData = animators.map((a, index) => ({
+    'ت': index + 1,
+    'الرقم التعريفي': a.registrationNumber,
+    'الاسم الكامل (عربي)': a.arabicName,
+    'الاسم الكامل (فرنسي)': a.frenchName || '-',
+    'نوع النشاط': a.activityType,
+    'التخصص / مجال التكوين': a.specialty,
+    'الأقسام المسندة': a.assignedClasses.join('، ') || 'غير محدد',
+    'الشعب المسندة': a.assignedStreams.join('، ') || 'غير محدد',
+    'رقم الهاتف': a.phone,
+    'البريد الإلكتروني': a.email || '-',
+    'تاريخ بداية العمل': a.startDate,
+    'الوضعية المهنية': a.status,
+    'ملاحظات إدارية': a.notes || '-',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'المنشطون');
+
+  if (!workbook.Workbook) workbook.Workbook = {};
+  if (!workbook.Workbook.Views) workbook.Workbook.Views = [];
+  if (!workbook.Workbook.Views[0]) workbook.Workbook.Views[0] = {};
+  workbook.Workbook.Views[0].RTL = true;
+
+  XLSX.writeFile(workbook, filename);
 };
 
