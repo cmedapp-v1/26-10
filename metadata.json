@@ -1,0 +1,6 @@
+{
+  "name": "تدبير المتعلمين - مركز الفرصة الثانية – الجيل الجديد زرارة",
+  "description": "تطبيق تدبير المتعلمين وإدارة الحضور والغياب والتأخرات في مركز الفرصة الثانية – الجيل الجديد زرارة",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
