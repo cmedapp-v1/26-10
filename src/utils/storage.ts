@@ -1,5 +1,6 @@
-import { Learner, AttendanceRecord, AppSettings, ScheduledSession, Holiday, BackupData, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit, Animator } from '../types';
+import { Learner, AttendanceRecord, AppSettings, ScheduledSession, Holiday, BackupData, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit, Animator, AdminUser, AdminAuditLog } from '../types';
 import { DEFAULT_SETTINGS, SAMPLE_LEARNERS, generateSampleAttendanceRecords, SAMPLE_SCHEDULE, SAMPLE_HOLIDAYS, SAMPLE_VIOLATIONS, SAMPLE_COMMITMENTS, SAMPLE_ANIMATORS } from './initialData';
+import { getStoredAdminUsers, saveStoredAdminUsers, getStoredAuditLogs, saveStoredAuditLogs } from './authUtils';
 
 const SETTINGS_KEY = 'e2s_zirara_settings';
 const LEARNERS_KEY = 'e2s_zirara_learners';
@@ -301,6 +302,8 @@ export const exportFullBackup = (data?: BackupData): void => {
     exitPapers: getStoredExitPapers(),
     infirmaryVisits: getStoredInfirmaryVisits(),
     animators: getStoredAnimators(),
+    adminUsers: getStoredAdminUsers(),
+    adminAuditLogs: getStoredAuditLogs(),
   };
 
   const jsonStr = JSON.stringify(backupData, null, 2);
@@ -337,6 +340,8 @@ export const restoreFullBackup = (
     exitPapers: ExitPaper[];
     infirmaryVisits: InfirmaryVisit[];
     animators: Animator[];
+    adminUsers?: AdminUser[];
+    adminAuditLogs?: AdminAuditLog[];
   } 
 } => {
   try {
@@ -356,6 +361,8 @@ export const restoreFullBackup = (
     const exitPapers = parsed.exitPapers || [];
     const infirmaryVisits = parsed.infirmaryVisits || [];
     const animators = parsed.animators || SAMPLE_ANIMATORS;
+    const adminUsers = parsed.adminUsers || getStoredAdminUsers();
+    const adminAuditLogs = parsed.adminAuditLogs || getStoredAuditLogs();
 
     saveStoredSettings(settings);
     saveStoredLearners(learners);
@@ -367,11 +374,13 @@ export const restoreFullBackup = (
     saveStoredExitPapers(exitPapers);
     saveStoredInfirmaryVisits(infirmaryVisits);
     saveStoredAnimators(animators);
+    saveStoredAdminUsers(adminUsers);
+    saveStoredAuditLogs(adminAuditLogs);
 
     return {
       success: true,
       message: 'تمت استعادة البيانات بنجاح!',
-      data: { settings, learners, attendance, schedule, holidays, violations, commitments, exitPapers, infirmaryVisits, animators },
+      data: { settings, learners, attendance, schedule, holidays, violations, commitments, exitPapers, infirmaryVisits, animators, adminUsers, adminAuditLogs },
     };
   } catch {
     return {

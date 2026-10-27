@@ -14,7 +14,8 @@ import {
   Info,
   ShieldCheck,
   AppWindow,
-  UserCheck
+  UserCheck,
+  UserCog
 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { 
@@ -27,15 +28,18 @@ import {
   CommitmentRecord, 
   ExitPaper, 
   InfirmaryVisit,
-  Animator 
+  Animator,
+  AdminUser,
+  AdminAuditLog
 } from '../types';
 import { exportFullBackup, restoreFullBackup, resetToDemoData } from '../utils/storage';
 import { DEFAULT_VIOLATION_TYPES } from '../utils/initialData';
 import { Backup } from './Backup';
 import { DataCorrection } from './DataCorrection';
 import { AnimatorManagement } from './AnimatorManagement';
+import { UserManagement } from './UserManagement';
 
-export type SettingsSubTab = 'general' | 'animators' | 'backup' | 'correction';
+export type SettingsSubTab = 'general' | 'users' | 'animators' | 'backup' | 'correction';
 
 interface SettingsProps {
   settings: AppSettings;
@@ -58,6 +62,10 @@ interface SettingsProps {
   setInfirmaryVisits: React.Dispatch<React.SetStateAction<InfirmaryVisit[]>>;
   animators?: Animator[];
   setAnimators?: React.Dispatch<React.SetStateAction<Animator[]>>;
+  adminUsers?: AdminUser[];
+  setAdminUsers?: React.Dispatch<React.SetStateAction<AdminUser[]>>;
+  currentUser?: AdminUser | null;
+  auditLogs?: AdminAuditLog[];
   initialSubTab?: SettingsSubTab;
   onNavigateToSchedule?: (animatorName?: string) => void;
 }
@@ -85,6 +93,10 @@ export const Settings: React.FC<SettingsProps> = ({
   setInfirmaryVisits,
   animators,
   setAnimators,
+  adminUsers,
+  setAdminUsers,
+  currentUser,
+  auditLogs = [],
   initialSubTab,
   onNavigateToSchedule,
 }) => {
@@ -298,6 +310,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const tabs = [
     { id: 'general', label: 'إعدادات عامة', icon: <AppWindow className="w-4 h-4" /> },
+    { id: 'users', label: 'تدبير المستخدمين الإداريين', icon: <UserCog className="w-4 h-4" /> },
     { id: 'animators', label: 'تدبير المنشطين والمؤطرين', icon: <UserCheck className="w-4 h-4" /> },
     { id: 'backup', label: 'النسخ الاحتياطي', icon: <Database className="w-4 h-4" /> },
     { id: 'correction', label: 'تصحيح البيانات', icon: <ShieldCheck className="w-4 h-4" /> },
@@ -706,6 +719,15 @@ export const Settings: React.FC<SettingsProps> = ({
 
           </div>
         </>
+      )}
+
+      {activeSubTab === 'users' && adminUsers && setAdminUsers && (
+        <UserManagement
+          adminUsers={adminUsers}
+          setAdminUsers={setAdminUsers}
+          currentUser={currentUser || null}
+          auditLogs={auditLogs}
+        />
       )}
 
       {activeSubTab === 'animators' && animators && setAnimators && (

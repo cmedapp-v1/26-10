@@ -175,6 +175,8 @@ export interface BackupData {
   exitPapers?: ExitPaper[];
   infirmaryVisits?: InfirmaryVisit[];
   animators?: Animator[];
+  adminUsers?: AdminUser[];
+  adminAuditLogs?: AdminAuditLog[];
 }
 
 export interface ExitPaper {
@@ -222,5 +224,55 @@ export interface InfirmaryVisit {
   createdAt: string;
 }
 
+export type UserRole = 'super_admin' | 'admin_user';
+
+export type SectionPermissionKey = 
+  | 'dashboard' 
+  | 'students' 
+  | 'schedule' 
+  | 'attendance' 
+  | 'tracking' 
+  | 'violations' 
+  | 'reports' 
+  | 'animators' 
+  | 'settings';
+
+export type ActionPermissionKey = 'view' | 'add' | 'edit' | 'delete' | 'export' | 'print';
+
+export type SectionPermissions = Record<ActionPermissionKey, boolean>;
+
+export type UserPermissions = Record<SectionPermissionKey, SectionPermissions>;
+
+export type UserAccountStatus = 'نشط' | 'غير نشط';
+
+export interface AdminUser {
+  id: string; // e.g. "USR-001"
+  userNumber: string; // e.g. "USR-001"
+  fullName: string;
+  username: string; // unique login name
+  passwordHash: string;
+  salt: string;
+  role: UserRole; // 'super_admin' | 'admin_user'
+  title: string; // الصفة أو المهمة الإدارية (e.g. مدير المركز، حارس عام...)
+  phone?: string;
+  status: UserAccountStatus; // 'نشط' | 'غير نشط'
+  mustChangePasswordOnFirstLogin?: boolean;
+  permissions: UserPermissions;
+  createdAt: string; // YYYY-MM-DD
+  lastLoginAt?: string; // YYYY-MM-DD HH:mm:ss
+  notes?: string;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  timestamp: string;
+  actorUsername: string;
+  actorName: string;
+  action: string;
+  targetUsername?: string;
+  details?: string;
+}
+
 export type TabType = 'dashboard' | 'students' | 'animators' | 'schedule' | 'attendance' | 'tracking' | 'violations' | 'reports' | 'backup' | 'data_correction' | 'settings';
+
 

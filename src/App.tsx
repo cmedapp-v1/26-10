@@ -22,20 +22,46 @@ import {
   saveStoredAnimators,
   exportFullBackup
 } from './utils/storage';
-import { TabType, AppSettings, Learner, AttendanceRecord, ScheduledSession, Holiday, SessionTime, Violation, CommitmentRecord, ExitPaper, InfirmaryVisit, Animator } from './types';
+import { 
+  TabType, 
+  AppSettings, 
+  Learner, 
+  AttendanceRecord, 
+  ScheduledSession, 
+  Holiday, 
+  SessionTime, 
+  Violation, 
+  CommitmentRecord, 
+  ExitPaper, 
+  InfirmaryVisit, 
+  Animator,
+  AdminUser,
+  AdminAuditLog,
+  SectionPermissionKey,
+  ActionPermissionKey
+} from './types';
+import { 
+  getStoredAdminUsers, 
+  saveStoredAdminUsers, 
+  getStoredCurrentSession, 
+  saveStoredCurrentSession, 
+  getStoredAuditLogs, 
+  checkPermission,
+  recordAuditLog 
+} from './utils/authUtils';
+
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { LearnerManagement } from './components/LearnerManagement';
-import { AnimatorManagement } from './components/AnimatorManagement';
 import { AttendanceRecording } from './components/AttendanceRecording';
 import { WeeklySchedule } from './components/WeeklySchedule';
 import { AbsenceTracking } from './components/AbsenceTracking';
 import { ViolationsManagement } from './components/ViolationsManagement';
 import { Reports } from './components/Reports';
-import { Backup } from './components/Backup';
 import { Settings, SettingsSubTab } from './components/Settings';
 import { OfficialHeader } from './components/OfficialHeader';
-import { DataCorrection } from './components/DataCorrection';
+import { LoginModal } from './components/LoginModal';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 
 export default function App() {
   // Dark Mode
@@ -43,7 +69,7 @@ export default function App() {
     if (typeof window !== 'undefined') {
       return (
         localStorage.getItem('theme') === 'dark' ||
-        window.matchMedia('(prefers-color-scheme: dark)').matches
+        (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
       );
     }
     return false;
@@ -74,6 +100,14 @@ export default function App() {
   const [infirmaryVisits, setInfirmaryVisits] = useState<InfirmaryVisit[]>(getStoredInfirmaryVisits);
   const [animators, setAnimators] = useState<Animator[]>(getStoredAnimators);
 
+  // User Auth & Session States
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(getStoredAdminUsers);
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(getStoredCurrentSession);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>(getStoredAuditLogs);
+
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(() => !getStoredCurrentSession());
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState<boolean>(false);
+
   // Active settings subtab for direct routing
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('general');
 
@@ -90,14 +124,6 @@ export default function App() {
   const [selectedLearnerForViolations, setSelectedLearnerForViolations] = useState<string | null>(null);
   // Quick jump state for creating a commitment for a specific learner
   const [initialCommitmentLearnerId, setInitialCommitmentLearnerId] = useState<string | null>(null);
-
-  // Quick attendance jump state from schedule
-  const [attendancePrefill, setAttendancePrefill] = useState<{
-    date: string;
-    sessionTime: SessionTime;
-    className: string;
-    subject?: string;
-  } | null>(null);
 
   // Sync with LocalStorage
   useEffect(() => {
@@ -140,6 +166,25 @@ export default function App() {
     saveStoredInfirmaryVisits(infirmaryVisits);
   }, [infirmaryVisits]);
 
+  useEffect(() => {
+    saveStoredAdminUsers(adminUsers);
+  }, [adminUsers]);
+
+  useEffect(() => {
+    saveStoredCurrentSession(currentUser);
+    if (!currentUser) {
+      setIsLoginModalOpen(true);
+    } else {
+      setIsLoginModalOpen(false);
+      // Auto logout if account is deactivated
+      const latest = adminUsers.find(u => u.id === currentUser.id);
+      if (latest && latest.status === 'غير نشط') {
+        setCurrentUser(null);
+        setIsLoginModalOpen(true);
+      }
+    }
+  }, [currentUser, adminUsers]);
+
   // Handler to navigate to schedule pre-filtered by animator
   const handleNavigateToScheduleForAnimator = (animatorName?: string) => {
     setScheduleAnimatorFilter(animatorName || null);
@@ -169,39 +214,75 @@ export default function App() {
     setActiveTab('attendance');
   };
 
-  // Unexcused absence threshold alert calculation for badge count
-  const alertCount = useMemo(() => {
-    const activeLearnerIds = new Set(
-      learners.filter((l) => l.status === 'نشط').map((l) => l.id)
-    );
+  // Active attendance prefill state
+  const [attendancePrefill, setAttendancePrefill] = useState<{
+    date: string;
+    sessionTime: SessionTime;
+    className: string;
+    subject?: string;
+  } | null>(null);
 
-    const unexcusedCounts: Record<string, number> = {};
-    attendance.forEach((rec) => {
-      if (rec.status === 'غائب' && activeLearnerIds.has(rec.learnerId)) {
-        unexcusedCounts[rec.learnerId] = (unexcusedCounts[rec.learnerId] || 0) + 1;
-      }
-    });
+  // Tab navigation guard
+  const handleTabChange = (tab: TabType) => {
+    if (currentUser && !checkPermission(currentUser, tab as SectionPermissionKey, 'view')) {
+      alert(`عذراً، الحساب الإداري الحالي (@${currentUser.username}) ليس لديه صلاحية الوصول لقسم "${tab}".`);
+      return;
+    }
+    setActiveTab(tab);
+  };
 
-    let count = 0;
-    Object.values(unexcusedCounts).forEach((c) => {
-      if (c >= settings.alertThreshold) {
-        count++;
-      }
-    });
-
-    return count;
-  }, [learners, attendance, settings.alertThreshold]);
+  // Logout handler
+  const handleLogout = () => {
+    if (currentUser) {
+      recordAuditLog(
+        { username: currentUser.username, fullName: currentUser.fullName },
+        'تسجيل الخروج من النظام',
+        currentUser.username
+      );
+    }
+    setCurrentUser(null);
+    setIsLoginModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-200">
       
+      {/* Login Screen / Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        adminUsers={adminUsers}
+        setAdminUsers={setAdminUsers}
+        settings={settings}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setIsLoginModalOpen(false);
+          setActiveTab('dashboard');
+        }}
+      />
+
+      {/* Forced / User Change Password Modal */}
+      {currentUser && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordModalOpen || !!currentUser.mustChangePasswordOnFirstLogin}
+          onClose={() => setIsChangePasswordModalOpen(false)}
+          currentUser={currentUser}
+          adminUsers={adminUsers}
+          setAdminUsers={setAdminUsers}
+          setCurrentUser={setCurrentUser}
+          isForcedFirstLogin={!!currentUser.mustChangePasswordOnFirstLogin}
+        />
+      )}
+
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         settings={settings}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onChangePassword={() => setIsChangePasswordModalOpen(true)}
       />
 
       {/* Main Viewport Content */}
@@ -214,7 +295,7 @@ export default function App() {
             attendance={attendance}
             settings={settings}
             animators={animators}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleTabChange}
             onOpenAnimators={handleOpenAnimatorsSettings}
           />
         )}
@@ -228,19 +309,22 @@ export default function App() {
             setSettings={setSettings}
             violations={violations}
             onViewLearnerViolations={handleViewLearnerViolations}
-            onAddNewViolationForLearner={handleViewLearnerViolations}
             onCreateCommitmentForLearner={handleCreateCommitmentForLearner}
           />
         )}
 
-        {activeTab === 'animators' && (
-          <AnimatorManagement
-            animators={animators}
-            setAnimators={setAnimators}
+        {activeTab === 'schedule' && (
+          <WeeklySchedule
             schedule={schedule}
             setSchedule={setSchedule}
+            holidays={holidays}
+            setHolidays={setHolidays}
             settings={settings}
-            onNavigateToSchedule={handleNavigateToScheduleForAnimator}
+            learners={learners}
+            attendance={attendance}
+            animators={animators}
+            initialAnimatorFilter={scheduleAnimatorFilter || undefined}
+            onOpenAttendanceForSession={handleOpenAttendanceForSession}
           />
         )}
 
@@ -256,19 +340,6 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'schedule' && (
-          <WeeklySchedule
-            schedule={schedule}
-            setSchedule={setSchedule}
-            holidays={holidays}
-            setHolidays={setHolidays}
-            settings={settings}
-            animators={animators}
-            initialAnimatorFilter={scheduleAnimatorFilter || undefined}
-            onOpenAttendanceForSession={handleOpenAttendanceForSession}
-          />
-        )}
-
         {activeTab === 'tracking' && (
           <AbsenceTracking
             learners={learners}
@@ -280,7 +351,7 @@ export default function App() {
             setExitPapers={setExitPapers}
             infirmaryVisits={infirmaryVisits}
             setInfirmaryVisits={setInfirmaryVisits}
-            onOpenViolations={() => setActiveTab('violations')}
+            onOpenViolations={() => handleTabChange('violations')}
             violationsCount={violations.length}
           />
         )}
@@ -335,6 +406,10 @@ export default function App() {
             setInfirmaryVisits={setInfirmaryVisits}
             animators={animators}
             setAnimators={setAnimators}
+            adminUsers={adminUsers}
+            setAdminUsers={setAdminUsers}
+            currentUser={currentUser}
+            auditLogs={auditLogs}
             initialSubTab={settingsSubTab}
             onNavigateToSchedule={handleNavigateToScheduleForAnimator}
           />
