@@ -33,6 +33,7 @@ import {
   Holiday 
 } from '../types';
 import { WeeklyCallSheetModal } from './WeeklyCallSheetModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
 
 interface AttendanceRecordingProps {
   learners: Learner[];
@@ -76,6 +77,7 @@ export const AttendanceRecording: React.FC<AttendanceRecordingProps> = ({
   // PDF Preview Modal state
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isWeeklyCallSheetModalOpen, setIsWeeklyCallSheetModalOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
   // Confirmation Modals State
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -309,9 +311,68 @@ export const AttendanceRecording: React.FC<AttendanceRecordingProps> = ({
   };
 
 
-  // Trigger browser print to PDF
+  // Trigger browser print to PDF using PrintPreviewModal
   const handlePrintPdf = () => {
-    window.print();
+    setIsPrintPreviewOpen(true);
+  };
+
+  const generateDailyCallSheetPrintableHtml = () => {
+    const rowsHtml = classLearners.map((l, idx) => {
+      const att = draftAttendance[l.id] || { status: 'حاضر', reason: '' };
+      return `
+        <tr>
+          <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+          <td>
+            <div style="font-weight: bold; font-size: 11pt;">${l.arabicName}</div>
+            ${l.frenchName ? `<div style="font-size: 8.5pt; color: #475569; font-family: sans-serif;">${l.frenchName}</div>` : ''}
+          </td>
+          <td style="text-align: center; font-family: monospace; font-weight: bold;">${l.registrationNumber || '-'}</td>
+          <td style="text-align: center; font-family: monospace;">${l.masarCode || '-'}</td>
+          <td>${l.className}</td>
+          <td style="text-align: center; font-weight: bold; ${att.status === 'غائب' ? 'color: #dc2626; background-color: #fef2f2;' : att.status === 'متأخر' ? 'color: #d97706;' : 'color: #16a34a;'}">${att.status}</td>
+          <td>${att.reason || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="header-title-box">
+        <h1>ورقة تسجيل الحضور والغياب اليومية</h1>
+        <div class="meta-bar">
+          <span><strong>التاريخ:</strong> ${selectedDate}</span>
+          <span><strong>الحصة:</strong> ${selectedSession}</span>
+          <span><strong>القسم:</strong> ${selectedClass}</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 5%; text-align: center;">ت</th>
+            <th style="width: 25%;">اسم المتعلم</th>
+            <th style="width: 12%; text-align: center;">رقم التسجيل</th>
+            <th style="width: 12%; text-align: center;">رقم مسار</th>
+            <th style="width: 18%;">القسم</th>
+            <th style="width: 12%; text-align: center;">حالة الحضور</th>
+            <th style="width: 16%;">ملاحظات / سبب الغياب</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 30px; display: flex; justify-content: space-between; text-align: center; font-size: 9.5pt; page-break-inside: avoid;">
+        <div>
+          <strong>توقيع المنشط(ة) المؤطر(ة)</strong><br /><br /><br />
+          <span>...............................</span>
+        </div>
+        <div>
+          <strong>توقيع وتأشير حارس العامة / الإدارة</strong><br /><br /><br />
+          <span>...............................</span>
+        </div>
+      </div>
+    `;
   };
 
   return (
@@ -920,6 +981,16 @@ export const AttendanceRecording: React.FC<AttendanceRecordingProps> = ({
         holidays={holidays}
         settings={settings}
         defaultClass={selectedClass}
+      />
+
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title={`ورقة الحضور والغياب - ${selectedClass}`}
+        settings={settings}
+        printableBodyHtml={generateDailyCallSheetPrintableHtml()}
+        defaultOrientation="portrait"
+        fileName={`ورقة_الحضور_${selectedClass}_${selectedDate}`}
       />
 
     </div>

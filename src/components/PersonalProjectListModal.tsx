@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Learner, AppSettings, PersonalProjectPath } from '../types';
 import * as XLSX from 'xlsx';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { printHtmlDocument } from '../utils/printUtils';
 
 interface PersonalProjectListModalProps {
   isOpen: boolean;
@@ -48,6 +50,8 @@ export const PersonalProjectListModal: React.FC<PersonalProjectListModalProps> =
     gender: 'all',
     search: ''
   });
+
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
   // Dynamic streams linked to selected class
   const availableStreams = useMemo(() => {
@@ -276,20 +280,13 @@ export const PersonalProjectListModal: React.FC<PersonalProjectListModalProps> =
     XLSX.writeFile(wb, `لائحة_المشروع_الشخصي_${settings.schoolYear.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // Print using isolated invisible iframe (guarantees Moroccan official styling without polluting main page)
+  // Handle print preview trigger
   const handlePrint = () => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    setIsPrintPreviewOpen(true);
+  };
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
+  // Helper to build body HTML for PrintPreviewModal
+  const generatePrintableHtml = () => {
     const rowsHtml = filteredLearners.map((l, idx) => `
       <tr>
         <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
@@ -307,188 +304,45 @@ export const PersonalProjectListModal: React.FC<PersonalProjectListModalProps> =
       </tr>
     `).join('');
 
-    const logosHtml = `
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 12px;">
-        <div style="text-align: right; line-height: 1.35; font-size: 9.5pt;">
-          <div style="font-weight: bold; font-size: 10.5pt; color: #0f172a;">المملكة المغربية</div>
-          <div style="font-weight: bold; color: #334155;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
-          <div style="color: #475569;">الأكاديمية الجهوية للتربية والتكوين جهة الرباط - سلا - القنيطرة</div>
-          <div style="color: #475569;">المديرية الإقليمية بسيدي قاسم</div>
-        </div>
-
-        <div style="text-align: center;">
-          ${settings.ministryLogoDataURL ? `<img src="${settings.ministryLogoDataURL}" style="height: 60px; max-width: 140px; object-fit: contain; margin-bottom: 4px;" alt="شعار الوزارة" />` : ''}
-          <div style="font-size: 13pt; font-weight: 900; color: #0f172a; margin-top: 2px;">${settings.schoolName}</div>
-          <div style="font-size: 8.5pt; font-weight: bold; color: #059669;">السنة الدراسية: ${settings.schoolYear}</div>
-        </div>
-
-        <div style="text-align: left; line-height: 1.35; font-size: 9.5pt;">
-          <div style="font-weight: bold; font-size: 10.5pt; color: #0f172a;">الهيئة المغربية للتربية والتنمية</div>
-          <div style="font-weight: bold; color: #334155;">مدرسة الفرصة الثانية الجيل الجديد</div>
-          <div style="color: #475569;">مركز زرارة - سيدي قاسم</div>
-          ${settings.associationLogoDataURL ? `<img src="${settings.associationLogoDataURL}" style="height: 40px; max-width: 100px; object-fit: contain; margin-top: 4px;" alt="شعار الهيئة" />` : ''}
+    return `
+      <div class="header-title-box">
+        <h1>لائحة المتعلمين حسب المشروع الشخصي</h1>
+        <div class="meta-bar">
+          <span><strong>الفلاتر المعتمدة:</strong> ${filtersSummaryText}</span>
+          <span><strong>تاريخ الاستخراج:</strong> ${currentTimestamp}</span>
         </div>
       </div>
+
+      <div class="stats-badges">
+        <span>إجمالي المتعلمين: <span style="color: #0369a1;">${stats.total}</span></span>
+        <span>ذكور: <span style="color: #0284c7;">${stats.males}</span></span>
+        <span>إناث: <span style="color: #d946ef;">${stats.females}</span></span>
+        <span>|</span>
+        <span>إدماج مدرسي: <span style="color: #4f46e5;">${stats.schoolIntegration}</span></span>
+        <span>تكوين مهني: <span style="color: #059669;">${stats.vocationalTraining}</span></span>
+        <span>سوق الشغل: <span style="color: #d97706;">${stats.jobMarket}</span></span>
+        <span>غير محدد: <span style="color: #64748b;">${stats.unspecified}</span></span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 4%; text-align: center;">ت</th>
+            <th style="width: 20%;">الاسم الكامل</th>
+            <th style="width: 11%; text-align: center;">رقم التسجيل</th>
+            <th style="width: 11%; text-align: center;">رقم مسار</th>
+            <th style="width: 14%;">القسم</th>
+            <th style="width: 14%;">الشعبة</th>
+            <th style="width: 6%; text-align: center;">الجنس</th>
+            <th style="width: 12%;">المشروع الشخصي</th>
+            <th style="width: 8%; text-align: center;">الحالة</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
     `;
-
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-        <head>
-          <meta charset="utf-8">
-          <title>لائحة المتعلمين حسب المشروع الشخصي - ${settings.schoolName}</title>
-          <style>
-            @page {
-              size: A4 landscape;
-              margin: 10mm 12mm 10mm 12mm;
-            }
-            body {
-              font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 10pt;
-              color: #0f172a;
-              background-color: #ffffff;
-              margin: 0;
-              padding: 0;
-              direction: rtl;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            .header-title-box {
-              text-align: center;
-              background-color: #f1f5f9;
-              border: 1.5px solid #cbd5e1;
-              border-radius: 8px;
-              padding: 8px 12px;
-              margin-bottom: 12px;
-            }
-            .header-title-box h1 {
-              margin: 0;
-              font-size: 15pt;
-              font-weight: 900;
-              color: #0f172a;
-            }
-            .meta-bar {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              font-size: 8.5pt;
-              color: #334155;
-              margin-top: 4px;
-              border-top: 1px dashed #cbd5e1;
-              padding-top: 4px;
-            }
-            .stats-badges {
-              display: flex;
-              gap: 16px;
-              justify-content: center;
-              background-color: #f8fafc;
-              border: 1px solid #e2e8f0;
-              padding: 6px 12px;
-              border-radius: 6px;
-              margin-bottom: 12px;
-              font-size: 9pt;
-              font-weight: bold;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 4px;
-              font-size: 9.5pt;
-            }
-            thead {
-              display: table-header-group;
-            }
-            tr {
-              page-break-inside: avoid;
-            }
-            th {
-              background-color: #e2e8f0;
-              color: #0f172a;
-              border: 1px solid #475569;
-              padding: 6px 8px;
-              text-align: right;
-              font-weight: 800;
-              font-size: 9pt;
-            }
-            td {
-              border: 1px solid #94a3b8;
-              padding: 5px 8px;
-              text-align: right;
-              vertical-align: middle;
-            }
-            tbody tr:nth-child(even) {
-              background-color: #f8fafc;
-            }
-            .footer-info {
-              margin-top: 12px;
-              display: flex;
-              justify-content: space-between;
-              font-size: 8pt;
-              color: #64748b;
-              border-top: 1px solid #cbd5e1;
-              padding-top: 6px;
-            }
-          </style>
-        </head>
-        <body>
-          ${logosHtml}
-
-          <div class="header-title-box">
-            <h1>لائحة المتعلمين حسب المشروع الشخصي</h1>
-            <div class="meta-bar">
-              <span><strong>الفلاتر المعتمدة:</strong> ${filtersSummaryText}</span>
-              <span><strong>تاريخ الاستخراج:</strong> ${currentTimestamp}</span>
-            </div>
-          </div>
-
-          <div class="stats-badges">
-            <span>إجمالي المتعلمين: <span style="color: #0369a1;">${stats.total}</span></span>
-            <span>ذكور: <span style="color: #0284c7;">${stats.males}</span></span>
-            <span>إناث: <span style="color: #d946ef;">${stats.females}</span></span>
-            <span>|</span>
-            <span>إدماج مدرسي: <span style="color: #4f46e5;">${stats.schoolIntegration}</span></span>
-            <span>تكوين مهني: <span style="color: #059669;">${stats.vocationalTraining}</span></span>
-            <span>سوق الشغل: <span style="color: #d97706;">${stats.jobMarket}</span></span>
-            <span>غير محدد: <span style="color: #64748b;">${stats.unspecified}</span></span>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 4%; text-align: center;">ت</th>
-                <th style="width: 20%;">الاسم الكامل</th>
-                <th style="width: 11%; text-align: center;">رقم التسجيل</th>
-                <th style="width: 11%; text-align: center;">رقم مسار</th>
-                <th style="width: 14%;">القسم</th>
-                <th style="width: 14%;">الشعبة</th>
-                <th style="width: 6%; text-align: center;">الجنس</th>
-                <th style="width: 12%;">المشروع الشخصي</th>
-                <th style="width: 8%; text-align: center;">الحالة</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-
-          <div class="footer-info">
-            <span>${settings.schoolName} · مدرسة الفرصة الثانية الجيل الجديد زرارة</span>
-            <span>مستخرج من النظام الآلي لتدبير المتعلمين والمشاريع الشخصية</span>
-            <span>الصفحة 1 من 1</span>
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
-    iframe.contentWindow?.focus();
-    setTimeout(() => {
-      iframe.contentWindow?.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1500);
-    }, 400);
   };
 
   // Badge stylings for personal project
@@ -896,6 +750,16 @@ export const PersonalProjectListModal: React.FC<PersonalProjectListModalProps> =
         </div>
 
       </div>
+
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title="لائحة المتعلمين حسب المشروع الشخصي"
+        settings={settings}
+        printableBodyHtml={generatePrintableHtml()}
+        defaultOrientation="landscape"
+        fileName={`لائحة_المشروع_الشخصي_${settings.schoolYear.replace(/\s+/g, '_')}`}
+      />
     </div>
   );
 };

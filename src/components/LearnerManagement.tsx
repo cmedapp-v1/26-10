@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PersonalProjectListModal } from './PersonalProjectListModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
 import { Learner, LearnerStatus, Gender, AppSettings, AttendanceRecord, Violation } from '../types';
 import { generateNextRegistrationNumber } from '../utils/storage';
 import { 
@@ -75,6 +76,7 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
   const [classFilter, setClassFilter] = useState<string>('all');
   const [streamFilter, setStreamFilter] = useState<string>('all');
   const [genderFilter, setGenderFilter] = useState<string>('all');
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
   // Modal State for Add / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -864,12 +866,12 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
 
           {/* PDF Export / Print button */}
           <button
-            onClick={() => window.print()}
+            onClick={() => setIsPrintPreviewOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-white text-white dark:text-slate-900 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all"
-            title="تصدير اللائحة المحددة حالياً بصيغة PDF أو الطباعة"
+            title="تصدير اللائحة المحددة حالياً بصيغة PDF أو معاينة الطباعة"
           >
             <Printer className="w-4 h-4" />
-            <span>تصدير PDF</span>
+            <span>معاينة وطباعة PDF</span>
           </button>
 
           {/* Import Excel/CSV button */}
@@ -1996,6 +1998,68 @@ export const LearnerManagement: React.FC<LearnerManagementProps> = ({
           </div>
         </div>
       )}
+
+      {/* Print Preview Modal for Learner List */}
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title="لائحة المتعلمين والمسجلين بالمركز"
+        settings={settings}
+        defaultOrientation="landscape"
+        fileName={`لائحة_المتعلمين_${settings.schoolYear.replace(/\s+/g, '_')}`}
+        printableBodyHtml={`
+          <div class="header-title-box">
+            <h1>لائحة المتعلمين والمسجلين بالمركز</h1>
+            <div class="meta-bar">
+              <span><strong>السنة الدراسية:</strong> ${settings.schoolYear}</span>
+              <span><strong>تاريخ الاستخراج:</strong> ${new Date().toLocaleDateString('ar-MA')}</span>
+            </div>
+          </div>
+
+          <div class="stats-badges">
+            <span>المجموع الكلي: <strong style="color: #0284c7;">${filteredLearnersStats.total}</strong></span>
+            <span>ذكور: <strong style="color: #0369a1;">${filteredLearnersStats.males}</strong></span>
+            <span>إناث: <strong style="color: #db2777;">${filteredLearnersStats.females}</strong></span>
+            ${filteredLearnersStats.unspecified > 0 ? `<span>غير محدد: <strong>${filteredLearnersStats.unspecified}</strong></span>` : ''}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 4%; text-align: center;">ت</th>
+                <th style="width: 22%;">الاسم الكامل</th>
+                <th style="width: 10%; text-align: center;">رقم التسجيل</th>
+                <th style="width: 10%; text-align: center;">رقم مسار</th>
+                <th style="width: 6%; text-align: center;">الجنس</th>
+                <th style="width: 14%;">القسم</th>
+                <th style="width: 14%;">الشعبة</th>
+                <th style="width: 10%;">المستوى السابق</th>
+                <th style="width: 10%;">المشروع الشخصي</th>
+                <th style="width: 6%; text-align: center;">الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredLearners.map((l, idx) => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+                  <td>
+                    <div style="font-weight: bold; font-size: 11pt;">${l.arabicName}</div>
+                    ${l.frenchName ? `<div style="font-size: 9pt; color: #475569; font-family: sans-serif;">${l.frenchName}</div>` : ''}
+                  </td>
+                  <td style="text-align: center; font-family: monospace; font-weight: bold;">${l.registrationNumber || '-'}</td>
+                  <td style="text-align: center; font-family: monospace;">${l.masarCode || '-'}</td>
+                  <td style="text-align: center;">${l.gender}</td>
+                  <td>${l.className}</td>
+                  <td>${l.stream}</td>
+                  <td>${l.previousLevel || '-'}</td>
+                  <td style="font-weight: bold; color: #1e3a8a;">${l.personalProject || 'غير محدد'}</td>
+                  <td style="text-align: center;">${l.status}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
+      />
 
     </div>
   );

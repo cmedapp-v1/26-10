@@ -34,6 +34,7 @@ import {
   Animator
 } from '../types';
 import { WeeklyCallSheetModal } from './WeeklyCallSheetModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
 
 interface WeeklyScheduleProps {
   schedule: ScheduledSession[];
@@ -87,6 +88,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isWeeklyCallSheetOpen, setIsWeeklyCallSheetOpen] = useState<boolean>(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
   const [editingSession, setEditingSession] = useState<ScheduledSession | null>(null);
 
   // Confirmation Modals State
@@ -408,9 +410,72 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
     });
   };
 
-  // Print schedule function
+  // Print schedule function using PrintPreviewModal
   const handlePrint = () => {
-    window.print();
+    setIsPrintPreviewOpen(true);
+  };
+
+  const generateTimetablePrintableHtml = () => {
+    const timeSlots = [
+      { id: '09:00–11:00', name: '09:00 – 11:00 (صباحاً)' },
+      { id: '11:00–13:00', name: '11:00 – 13:00 (صباحاً)' },
+      { id: '13:00–14:00', name: '13:00 – 14:00 (استراحة الغداء)', isBreak: true },
+      { id: '14:00–16:00', name: '14:00 – 16:00 (بعد الزوال)' },
+    ];
+
+    return `
+      <div class="header-title-box">
+        <h1>التخطيط واستعمال الزمن الأسبوعي الرسمي</h1>
+        <div class="meta-bar">
+          <span><strong>الأسبوع:</strong> ${weekRangeString}</span>
+          <span><strong>السنة الدراسية:</strong> ${settings.schoolYear}</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 12%; text-align: center;">اليوم / التوقيت</th>
+            ${timeSlots.map(ts => `<th style="text-align: center;">${ts.name}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${DAYS_OF_WEEK.map(day => `
+            <tr>
+              <td style="text-align: center; font-weight: bold; background-color: #f1f5f9;">${day}</td>
+              ${timeSlots.map(ts => {
+                if (ts.isBreak) {
+                  return `<td style="text-align: center; background-color: #fef3c7; color: #92400e; font-weight: bold; font-size: 8.5pt;">استراحة وتغذية</td>`;
+                }
+                const session = filteredSchedule.find(s => s.dayOfWeek === day && s.timeSlot === ts.id);
+                if (!session) {
+                  return `<td style="text-align: center; color: #94a3b8; font-style: italic;">— فارغ —</td>`;
+                }
+                return `
+                  <td style="padding: 6px;">
+                    <div style="font-weight: bold; color: #0f172a; font-size: 10pt;">${session.subject}</div>
+                    <div style="font-size: 8.5pt; color: #0369a1; font-weight: 600;">👨‍🏫 المنشط: ${session.animator}</div>
+                    <div style="font-size: 8pt; color: #475569;">🏫 ${session.classes.join('، ')}</div>
+                    <div style="font-size: 8pt; color: #059669; font-weight: 600;">نوع الحصة: ${session.sessionType}</div>
+                  </td>
+                `;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 30px; display: flex; justify-content: space-between; text-align: center; font-size: 9.5pt; page-break-inside: avoid;">
+        <div>
+          <strong>منسق الأنشطة التربوية والمهنية</strong><br /><br /><br />
+          <span>...............................</span>
+        </div>
+        <div>
+          <strong>مصادقة رئيس المؤسسة / المدير</strong><br /><br /><br />
+          <span>...............................</span>
+        </div>
+      </div>
+    `;
   };
 
   return (
@@ -1284,6 +1349,16 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
         settings={settings}
         defaultClass={filterClass}
         defaultWeekOffset={weekOffset}
+      />
+
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title="استعمال الزمن الأسبوعي الرسمي"
+        settings={settings}
+        printableBodyHtml={generateTimetablePrintableHtml()}
+        defaultOrientation="landscape"
+        fileName={`استعمال_الزمن_${settings.schoolYear.replace(/\s+/g, '_')}`}
       />
 
     </div>

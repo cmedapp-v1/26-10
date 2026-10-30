@@ -13,17 +13,40 @@
   }
 }
 
-/* Print Stylesheet for Official Reports and Call Sheets */
+/* Universal Print Stylesheet for A4 Official Moroccan Documents */
 @media print {
-  body {
-    background-color: white !important;
-    color: black !important;
-    font-size: 11pt;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
   }
 
-  .no-print {
+  @page landscape {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt;
+    line-height: 1.4;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hide screen-only elements */
+  .no-print, 
+  nav, 
+  sidebar, 
+  header.no-print, 
+  .no-print-area, 
+  button:not(.print-include), 
+  input[type="checkbox"]:not(.print-include) {
     display: none !important;
   }
 
@@ -34,30 +57,36 @@
   .print-container {
     position: static !important;
     width: 100% !important;
+    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
     background: transparent !important;
+    overflow: visible !important;
   }
 
-  /* Ensure modal backdrop and scroll bars don't mess with print view */
-  .modal-backdrop-print {
-    position: static !important;
-    background: white !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-  }
-
+  /* Table formatting for A4 print */
   table {
     width: 100% !important;
+    max-width: 100% !important;
     border-collapse: collapse !important;
     page-break-inside: auto;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    table-layout: auto;
+  }
+
+  thead {
+    display: table-header-group !important; /* Repeats table headers on every printed page */
+  }
+
+  tfoot {
+    display: table-footer-group !important;
   }
 
   tr {
-    page-break-inside: avoid;
+    page-break-inside: avoid !important; /* Prevents splitting table rows across page splits */
     page-break-after: auto;
   }
 
@@ -65,16 +94,31 @@
     border: 1px solid #1e293b !important;
     padding: 5px 8px !important;
     text-align: right !important;
+    font-size: 9pt !important;
+    vertical-align: middle !important;
+    word-break: break-word;
   }
 
   th {
     background-color: #f1f5f9 !important;
-    font-weight: bold !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
   }
 
-  @page {
-    size: auto;
-    margin: 1cm;
+  /* Page Break Utilities */
+  .page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .page-break-after {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

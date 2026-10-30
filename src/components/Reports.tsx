@@ -42,6 +42,7 @@ import {
 } from '../types';
 import { calculateReportStats, calculateBranchMonthlyStats, BranchMonthlyStats } from '../utils/statsUtils';
 import { PersonalProjectListModal } from './PersonalProjectListModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -70,6 +71,7 @@ export const Reports: React.FC<ReportsProps> = ({
   animators = []
 }) => {
   const [isPersonalProjectModalOpen, setIsPersonalProjectModalOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'branch-monthly' | 'animators'>('overview');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
@@ -344,6 +346,13 @@ export const Reports: React.FC<ReportsProps> = ({
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
+          <button 
+            onClick={() => setIsPrintPreviewOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-sm"
+          >
+            <FileText className="w-4 h-4" />
+            <span>معاينة وطباعة A4</span>
+          </button>
           <button 
             onClick={exportToExcel}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
@@ -937,6 +946,91 @@ export const Reports: React.FC<ReportsProps> = ({
         onClose={() => setIsPersonalProjectModalOpen(false)}
         learners={learners}
         settings={settings}
+      />
+
+      {/* Print Preview Modal */}
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title="تقرير الإحصائيات العامة والمؤشرات"
+        settings={settings}
+        printableBodyHtml={`
+          <div class="header-title-box">
+            <h1>تقرير الإحصائيات العامة والمؤشرات الرسمية</h1>
+            <div class="meta-bar">
+              <span><strong>الفترة:</strong> من ${dateRange.start} إلى ${dateRange.end}</span>
+              <span><strong>السنة الدراسية:</strong> ${settings.schoolYear}</span>
+            </div>
+          </div>
+
+          <div class="stats-badges">
+            <span>إجمالي المتعلمين: <strong style="color: #4f46e5;">${stats.totalLearners}</strong></span>
+            <span>نسبة الحضور: <strong style="color: #10b981;">${stats.attendanceRate}%</strong></span>
+            <span>نسبة الانقطاع: <strong style="color: #ef4444;">${stats.dropoutRate}%</strong></span>
+            <span>المخالفات: <strong style="color: #f59e0b;">${stats.totalViolations}</strong></span>
+          </div>
+
+          <h3 style="font-size: 11pt; color: #1e3a8a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 14px;">1. توزيع المتعلمين حسب المشروع الشخصي</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>المشروع الشخصي</th>
+                <th style="text-align: center;">عدد المتعلمين</th>
+                <th style="text-align: center;">النسبة المئوية</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stats.distributionByPersonalProject.map(p => `
+                <tr>
+                  <td style="font-weight: bold;">${p.name}</td>
+                  <td style="text-align: center;">${p.count}</td>
+                  <td style="text-align: center;">${p.percentage}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <h3 style="font-size: 11pt; color: #1e3a8a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 14px;">2. نسبة المواظبة والغياب حسب الشعب والمسارات</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>الشعبة</th>
+                <th style="text-align: center;">المتعلمون</th>
+                <th style="text-align: center;">الحضور</th>
+                <th style="text-align: center;">الغياب غير المبرر</th>
+                <th style="text-align: center;">الغياب المبرر</th>
+                <th style="text-align: center;">التأخرات</th>
+                <th style="text-align: center;">نسبة المواظبة</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${branchMonthlyStats.map(s => `
+                <tr>
+                  <td style="font-weight: bold;">${s.stream}</td>
+                  <td style="text-align: center;">${s.learnerCount}</td>
+                  <td style="text-align: center;">${s.presentCount}</td>
+                  <td style="text-align: center; color: #dc2626;">${s.absentCount}</td>
+                  <td style="text-align: center;">${s.excusedCount}</td>
+                  <td style="text-align: center;">${s.lateCount}</td>
+                  <td style="text-align: center; font-weight: bold; color: #059669;">${s.attendanceRate}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 35px; display: flex; justify-content: space-between; text-align: center; font-size: 9.5pt; page-break-inside: avoid;">
+            <div>
+              <strong>إعداد وتوثيق الإدارة</strong><br /><br /><br />
+              <span>...............................</span>
+            </div>
+            <div>
+              <strong>مصادقة رئيس المؤسسة / المدير</strong><br /><br /><br />
+              <span>...............................</span>
+            </div>
+          </div>
+        `}
+        defaultOrientation="landscape"
+        fileName={`تقرير_الإحصائيات_${settings.schoolYear.replace(/\s+/g, '_')}`}
       />
     </div>
   );

@@ -24,6 +24,7 @@ import { generateNextExitPaperNumber, generateNextInfirmaryVisitNumber } from '.
 import { InfirmaryModal } from './InfirmaryModal';
 import { ExitPaperModal } from './ExitPaperModal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { PrintPreviewModal } from './PrintPreviewModal';
 
 interface AbsenceTrackingProps {
   learners: Learner[];
@@ -96,9 +97,12 @@ export const AbsenceTracking: React.FC<AbsenceTrackingProps> = ({
   const [showInfirmaryModal, setShowInfirmaryModal] = useState(false);
   const [showExitPaperModal, setShowExitPaperModal] = useState(false);
 
-  // Print states
-  const [printingExitPaper, setPrintingExitPaper] = useState<ExitPaper | null>(null);
-  const [printingInfirmaryVisit, setPrintingInfirmaryVisit] = useState<InfirmaryVisit | null>(null);
+  // Print preview states
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState('تقرير متابعة الحضور والغياب');
+  const [previewOrientation, setPreviewOrientation] = useState<'portrait' | 'landscape'>('landscape');
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewFileName, setPreviewFileName] = useState('تقرير_الغياب');
 
   // Correction Modal state
   const [correctingRecord, setCorrectingRecord] = useState<AttendanceRecord | null>(null);
@@ -253,25 +257,137 @@ export const AbsenceTracking: React.FC<AbsenceTrackingProps> = ({
     );
   };
 
-  // Trigger browser print
+  // Trigger print report using PrintPreviewModal
   const handlePrintReport = () => {
-    window.print();
+    const rowsHtml = filteredRecords.map((rec: AttendanceRecord, idx: number) => {
+      const learner = learnersMap.get(rec.learnerId);
+      return `
+        <tr>
+          <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${rec.date}</td>
+          <td>
+            <div style="font-weight: bold; font-size: 10.5pt;">${learner?.arabicName || 'غير معروف'}</div>
+            ${learner?.frenchName ? `<div style="font-size: 8.5pt; color: #475569;">${learner.frenchName}</div>` : ''}
+          </td>
+          <td style="text-align: center;">${learner?.className || '-'}</td>
+          <td style="text-align: center;">${rec.session}</td>
+          <td style="text-align: center; font-weight: bold; ${rec.status === 'غائب' ? 'color: #dc2626;' : rec.status === 'متأخر' ? 'color: #d97706;' : 'color: #16a34a;'}">${rec.status}</td>
+          <td>${rec.reason || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <div class="header-title-box">
+        <h1>تقرير وتتبع غيابات المتعلمين</h1>
+        <div class="meta-bar">
+          <span><strong>الفترة:</strong> من ${startDate} إلى ${endDate}</span>
+          <span><strong>العدد الإجمالي للحالات:</strong> ${filteredRecords.length}</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 5%; text-align: center;">ت</th>
+            <th style="width: 12%; text-align: center;">التاريخ</th>
+            <th style="width: 25%;">اسم المتعلم</th>
+            <th style="width: 15%; text-align: center;">القسم</th>
+            <th style="width: 15%; text-align: center;">الحصة</th>
+            <th style="width: 12%; text-align: center;">الحالة</th>
+            <th style="width: 16%;">السبب / الملاحظات</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    `;
+
+    setPreviewTitle('تقرير وتتبع غيابات المتعلمين');
+    setPreviewOrientation('landscape');
+    setPreviewHtml(html);
+    setPreviewFileName(`تقرير_الغياب_${startDate}_إلى_${endDate}`);
+    setIsPrintPreviewOpen(true);
   };
 
   const handlePrintExitPaper = (paper: ExitPaper) => {
-    setPrintingExitPaper(paper);
-    setTimeout(() => {
-      window.print();
-      setPrintingExitPaper(null);
-    }, 100);
+    const html = `
+      <div class="header-title-box">
+        <h1>رخصة خروج استثنائية (AUTORISATION DE SORTIE)</h1>
+        <div class="meta-bar">
+          <span><strong>رقم الرخصة:</strong> ${paper.exitNumber}</span>
+          <span><strong>التاريخ:</strong> ${paper.date} — الساعة: ${paper.timeOut}</span>
+        </div>
+      </div>
+
+      <div style="border: 1.5px solid #0f172a; padding: 16px; border-radius: 8px; background-color: #f8fafc; font-size: 11pt; line-height: 1.8;">
+        <p>يُرخص للمتعلم(ة): <strong style="font-size: 13pt; color: #1e3a8a;">${paper.learnerName}</strong></p>
+        <p>القسم: <strong>${paper.className}</strong> — الشعبة: <strong>${paper.stream}</strong></p>
+        <p>نوع الرخصة والسبب: <strong style="color: #dc2626;">${paper.type} — ${paper.reason}</strong></p>
+        <p>المرافق / النطاق: <strong>${paper.companion || 'بدون مرافق'}</strong> (${paper.destination || '—'})</p>
+        ${paper.notes ? `<p>ملاحظات إدارية: ${paper.notes}</p>` : ''}
+      </div>
+
+      <div style="margin-top: 40px; display: flex; justify-content: space-between; text-align: center; font-size: 10.5pt; font-weight: bold;">
+        <div>
+          توقيع ولي الأمر / المرافق<br /><br /><br />
+          ...............................
+        </div>
+        <div>
+          توقيع الحارس العام / المكلف بالانضباط<br /><br /><br />
+          ...............................
+        </div>
+        <div>
+          خاتم وتوقيع إدارة المركز<br /><br /><br />
+          ...............................
+        </div>
+      </div>
+    `;
+
+    setPreviewTitle(`رخصة خروج - ${paper.learnerName}`);
+    setPreviewOrientation('portrait');
+    setPreviewHtml(html);
+    setPreviewFileName(`رخصة_خروج_${paper.exitNumber}`);
+    setIsPrintPreviewOpen(true);
   };
 
   const handlePrintInfirmaryVisit = (visit: InfirmaryVisit) => {
-    setPrintingInfirmaryVisit(visit);
-    setTimeout(() => {
-      window.print();
-      setPrintingInfirmaryVisit(null);
-    }, 100);
+    const html = `
+      <div class="header-title-box">
+        <h1>بطاقة زيارة وتوجيه للتمريض (FICHE D'INFIRMERIE)</h1>
+        <div class="meta-bar">
+          <span><strong>رقم البطاقة:</strong> ${visit.visitNumber}</span>
+          <span><strong>التاريخ:</strong> ${visit.date} — الساعة: ${visit.timeOut}</span>
+        </div>
+      </div>
+
+      <div style="border: 1.5px solid #0f172a; padding: 16px; border-radius: 8px; background-color: #f8fafc; font-size: 11pt; line-height: 1.8;">
+        <p>اسم المتعلم(ة): <strong style="font-size: 13pt; color: #0284c7;">${visit.learnerName}</strong></p>
+        <p>القسم: <strong>${visit.className}</strong> — الشعبة: <strong>${visit.stream}</strong></p>
+        <p>الشكاية / السبب الصحي: <strong style="color: #d97706;">${visit.complaint}</strong></p>
+        <p>العلاج / الإجراء المتخذ: <strong>${visit.treatment || 'فحص أولي وصرف علاج'}</strong></p>
+        <p>المؤسسة الصحية: <strong>${visit.institution || 'التمريض الداخلي بالمركز'}</strong></p>
+        ${visit.notes ? `<p>ملاحظات إضافية: ${visit.notes}</p>` : ''}
+      </div>
+
+      <div style="margin-top: 40px; display: flex; justify-content: space-between; text-align: center; font-size: 10.5pt; font-weight: bold;">
+        <div>
+          توقيع المشرف الصحي / الممرض(ة)<br /><br /><br />
+          ...............................
+        </div>
+        <div>
+          خاتم وتوقيع إدارة المركز<br /><br /><br />
+          ...............................
+        </div>
+      </div>
+    `;
+
+    setPreviewTitle(`بطاقة التمريض - ${visit.learnerName}`);
+    setPreviewOrientation('portrait');
+    setPreviewHtml(html);
+    setPreviewFileName(`بطاقة_التمريض_${visit.visitNumber}`);
+    setIsPrintPreviewOpen(true);
   };
 
   // Handle WhatsApp Entry Slip Modal
@@ -499,150 +615,7 @@ export const AbsenceTracking: React.FC<AbsenceTrackingProps> = ({
         cancelLabel="إلغاء"
       />
       
-      {/* Printable Exit Paper (A4 Portrait, 2 copies) */}
-      {printingExitPaper && (
-        <div className="fixed inset-0 z-[100] bg-white print-only text-right dir-rtl font-sans" style={{ direction: 'rtl' }}>
-          {[1, 2].map((i) => (
-            <div key={i} className={`h-1/2 p-10 relative flex flex-col ${i === 1 ? 'border-b-2 border-dashed border-gray-400' : ''}`}>
-              <PrintHeader />
-              
-              <div className="flex-1">
-                <div className="text-center mb-8">
-                  <h1 className="text-xl font-black underline decoration-2 underline-offset-4">ورقة خروج متعلم</h1>
-                  <p className="text-xs font-mono mt-1">رقم: {printingExitPaper.exitNumber}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-xs">
-                  <div className="col-span-2 flex items-baseline gap-2 border-b border-gray-100 pb-2">
-                    <span className="font-bold text-gray-700 min-w-[100px]">اسم المتعلم(ة):</span> 
-                    <span className="text-sm font-black text-indigo-900">{printingExitPaper.learnerName}</span>
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">الرقم الداخلي:</span> 
-                    <span className="font-mono">{printingExitPaper.registrationNumber}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">القسم / الشعبة:</span> 
-                    <span>{printingExitPaper.className} - {printingExitPaper.stream}</span>
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">تاريخ الخروج:</span> 
-                    <span className="font-mono">{printingExitPaper.date}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">وقت الخروج:</span> 
-                    <span className="font-mono">{printingExitPaper.timeOut}</span>
-                  </div>
 
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">نوع الخروج:</span> 
-                    <span className="px-2 py-0.5 bg-gray-50 rounded font-semibold">{printingExitPaper.type}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">وقت العودة:</span> 
-                    <span className="font-mono text-gray-400">........................</span>
-                  </div>
-                  
-                  <div className="col-span-2 flex items-start gap-2">
-                    <span className="font-bold text-gray-700 min-w-[100px]">سبب الخروج:</span> 
-                    <span className="text-gray-800 italic">{printingExitPaper.reason}</span>
-                  </div>
-                  
-                  {printingExitPaper.destination && (
-                    <div className="col-span-2 flex items-baseline gap-2">
-                      <span className="font-bold text-gray-700 min-w-[100px]">الوجهة:</span> 
-                      <span>{printingExitPaper.destination}</span>
-                    </div>
-                  )}
-
-                  <div className="col-span-2 mt-4">
-                    <span className="font-bold text-gray-700 block mb-1">ملاحظات الإدارة:</span>
-                    <div className="border border-dashed border-gray-300 p-3 min-h-[60px] rounded text-[11px] text-gray-600">
-                      {printingExitPaper.notes || 'لا توجد ملاحظات إضافية.'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute bottom-6 left-10 right-10 flex justify-between text-[10px] text-gray-400 border-t border-gray-100 pt-2">
-                <span>{i === 1 ? 'نسخة المتعلم' : 'نسخة الإدارة'}</span>
-                <span>تاريخ الطباعة: {new Date().toLocaleString('ar-MA')}</span>
-                <span>نظام تدبير مركز زرارة</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Printable Infirmary Visit (A4 Portrait, 2 copies) */}
-      {printingInfirmaryVisit && (
-        <div className="fixed inset-0 z-[100] bg-white print-only text-right dir-rtl font-sans" style={{ direction: 'rtl' }}>
-          {[1, 2].map((i) => (
-            <div key={i} className={`h-1/2 p-10 relative flex flex-col ${i === 1 ? 'border-b-2 border-dashed border-gray-400' : ''}`}>
-              <PrintHeader />
-
-              <div className="flex-1">
-                <div className="text-center mb-8">
-                  <h1 className="text-xl font-black underline decoration-2 underline-offset-4">ورقة زيارة المستوصف</h1>
-                  <p className="text-xs font-mono mt-1">رقم: {printingInfirmaryVisit.visitNumber}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-xs">
-                  <div className="col-span-2 flex items-baseline gap-2 border-b border-gray-100 pb-2">
-                    <span className="font-bold text-gray-700 min-w-[100px]">اسم المتعلم(ة):</span> 
-                    <span className="text-sm font-black text-emerald-900">{printingInfirmaryVisit.learnerName}</span>
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">القسم:</span> 
-                    <span>{printingInfirmaryVisit.className}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">الشعبة:</span> 
-                    <span>{printingInfirmaryVisit.stream}</span>
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">تاريخ الزيارة:</span> 
-                    <span className="font-mono">{printingInfirmaryVisit.date}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700">ساعة المغادرة:</span> 
-                    <span className="font-mono">{printingInfirmaryVisit.timeOut}</span>
-                  </div>
-
-                  <div className="col-span-2 flex items-start gap-2">
-                    <span className="font-bold text-gray-700 min-w-[100px]">الشكاية / الأعراض:</span> 
-                    <span className="text-gray-800 italic">{printingInfirmaryVisit.complaint}</span>
-                  </div>
-
-                  <div className="col-span-2 flex items-baseline gap-2">
-                    <span className="font-bold text-gray-700 min-w-[100px]">المؤسسة الصحية:</span> 
-                    <span>{printingInfirmaryVisit.institution || 'المستوصف المحلي'}</span>
-                  </div>
-
-                  <div className="col-span-2 mt-6 grid grid-cols-2 gap-4">
-                    <div className="border border-gray-200 rounded p-4 h-24 flex flex-col items-center justify-center">
-                      <span className="text-[10px] font-bold text-gray-500 mb-auto">توقيع الإدارة</span>
-                    </div>
-                    <div className="border border-gray-200 rounded p-4 h-24 flex flex-col items-center justify-center">
-                      <span className="text-[10px] font-bold text-gray-500 mb-auto">تأشيرة المستوصف</span>
-                      <p className="text-[9px] text-gray-400 mt-auto">عند العودة للمركز</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="absolute bottom-6 left-10 right-10 flex justify-between text-[10px] text-gray-400 border-t border-gray-100 pt-2">
-                <span>{i === 1 ? 'نسخة المتعلم' : 'نسخة الإدارة'}</span>
-                <span>مستخرج من نظام تدبير مركز زرارة</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Printable Official Header (Hidden on screen, visible during window.print()) */}
       <div className="print-only mb-6 text-center border-b pb-4">
@@ -1651,6 +1624,17 @@ export const AbsenceTracking: React.FC<AbsenceTrackingProps> = ({
           </div>
         </div>
       )}
+
+      {/* Print Preview Modal */}
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title={previewTitle}
+        settings={settings}
+        printableBodyHtml={previewHtml}
+        defaultOrientation={previewOrientation}
+        fileName={previewFileName}
+      />
 
     </div>
   );

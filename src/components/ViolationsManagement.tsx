@@ -39,6 +39,7 @@ import {
 } from '../types';
 import { DEFAULT_VIOLATION_TYPES, STANDARD_VIOLATION_ACTIONS, DEFAULT_COMMITMENT_TEXT } from '../utils/initialData';
 import { ConfirmDialog } from './ConfirmDialog';
+import { PrintPreviewModal } from './PrintPreviewModal';
 import { generateNextViolationNumber, generateNextCommitmentNumber } from '../utils/storage';
 import { 
   exportViolationsToExcel, 
@@ -102,6 +103,13 @@ export const ViolationsManagement: React.FC<ViolationsManagementProps> = ({
   const [editingViolation, setEditingViolation] = useState<Violation | null>(null);
   const [printNoticeViolation, setPrintNoticeViolation] = useState<Violation | null>(null);
   const [deletingViolation, setDeletingViolation] = useState<Violation | null>(null);
+
+  // Print preview modal state
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState('سجل المخالفات');
+  const [previewOrientation, setPreviewOrientation] = useState<'portrait' | 'landscape'>('landscape');
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewFileName, setPreviewFileName] = useState('سجل_المخالفات');
 
   // Active Sub-Tab: 'violations' or 'commitments'
   const [activeSubTab, setActiveSubTab] = useState<'violations' | 'commitments'>('violations');
@@ -3255,6 +3263,17 @@ export const ViolationsManagement: React.FC<ViolationsManagementProps> = ({
           </div>
         </div>
       )}
+
+      {/* Print Preview Modal */}
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title={previewTitle}
+        settings={settings}
+        printableBodyHtml={previewHtml}
+        defaultOrientation={previewOrientation}
+        fileName={previewFileName}
+      />
 
     </div>
   );

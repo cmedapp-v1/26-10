@@ -28,6 +28,7 @@ import { Animator, ScheduledSession, AppSettings, SessionType, AnimatorStatus } 
 import { exportAnimatorsToExcel } from '../utils/excelImportExport';
 import { AnimatorModal } from './AnimatorModal';
 import { AnimatorCardModal } from './AnimatorCardModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface AnimatorManagementProps {
@@ -63,6 +64,7 @@ export const AnimatorManagement: React.FC<AnimatorManagementProps> = ({
 
   const [isCardModalOpen, setIsCardModalOpen] = useState<boolean>(false);
   const [selectedAnimatorForCard, setSelectedAnimatorForCard] = useState<Animator | null>(null);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
 
   // Confirmation dialog state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -256,28 +258,13 @@ export const AnimatorManagement: React.FC<AnimatorManagementProps> = ({
     exportAnimatorsToExcel(listToExport, filename);
   };
 
-  // Print List using isolated iframe
+  // Print List using PrintPreviewModal
   const handlePrintList = (onlySelected = false) => {
-    const listToPrint = onlySelected
-      ? animators.filter((a) => selectedIds.includes(a.id))
-      : filteredAnimators;
+    setIsPrintPreviewOpen(true);
+  };
 
-    if (listToPrint.length === 0) {
-      alert('لا توجد بيانات للطباعة.');
-      return;
-    }
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
+  const generatePrintableListHtml = () => {
+    const listToPrint = filteredAnimators;
 
     const rowsHtml = listToPrint.map((a, idx) => {
       const stats = animatorScheduleStats[a.id] || { sessionCount: 0, hours: 0 };
@@ -300,146 +287,53 @@ export const AnimatorManagement: React.FC<AnimatorManagementProps> = ({
       `;
     }).join('');
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <meta charset="utf-8" />
-        <title>لائحة المنشطين والمؤطرين - مدرسة الفرصة الثانية الجيل الجديد زرارة</title>
-        <style>
-          @page {
-            size: A4 landscape;
-            margin: 12mm;
-          }
-          body {
-            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-            color: #0f172a;
-            margin: 0;
-            padding: 0;
-            line-height: 1.35;
-          }
-          .header-box {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 10px;
-            margin-bottom: 12px;
-          }
-          .title-banner {
-            background-color: #f8fafc;
-            border: 1.5px solid #0f172a;
-            text-align: center;
-            padding: 8px;
-            margin-bottom: 12px;
-            border-radius: 4px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9pt;
-          }
-          th {
-            background-color: #f1f5f9;
-            color: #0f172a;
-            border: 1px solid #cbd5e1;
-            padding: 6px 4px;
-            font-weight: bold;
-          }
-          td {
-            border: 1px solid #cbd5e1;
-            padding: 5px 4px;
-          }
-          .summary-bar {
-            display: flex;
-            justify-content: space-between;
-            font-size: 9pt;
-            font-weight: bold;
-            margin-top: 10px;
-            padding: 6px;
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-          }
-          .signature-box {
-            margin-top: 25px;
-            display: flex;
-            justify-content: space-between;
-            text-align: center;
-            font-size: 9.5pt;
-            page-break-inside: avoid;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header-box">
-          <div style="text-align: right; line-height: 1.35; font-size: 9.5pt;">
-            <div style="font-weight: bold; font-size: 10.5pt;">المملكة المغربية</div>
-            <div style="font-weight: bold; color: #334155;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
-            <div style="color: #475569;">الأكاديمية الجهوية للتربية والتكوين جهة الرباط - سلا - القنيطرة</div>
-            <div style="color: #475569;">المديرية الإقليمية بسيدي قاسم</div>
-          </div>
-          <div style="text-align: center;">
-            ${settings.ministryLogoDataURL ? `<img src="${settings.ministryLogoDataURL}" style="height: 55px; max-width: 130px; object-fit: contain;" alt="شعار الوزارة" />` : ''}
-          </div>
-          <div style="text-align: left; line-height: 1.35; font-size: 9.5pt;">
-            <div style="font-weight: bold; font-size: 10pt; color: #1e3a8a;">مركز الفرصة الثانية - الجيل الجديد زرارة</div>
-            <div style="color: #475569;">السنة الدراسية: ${settings.schoolYear}</div>
-            <div style="color: #64748b; font-size: 8.5pt;">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-MA')}</div>
-          </div>
+    return `
+      <div class="header-title-box">
+        <h1>لائحة المنشطين والمؤطرين بالمركز</h1>
+        <div class="meta-bar">
+          <span><strong>السنة الدراسية:</strong> ${settings.schoolYear}</span>
+          <span><strong>تاريخ الاستخراج:</strong> ${new Date().toLocaleDateString('ar-MA')}</span>
         </div>
+      </div>
 
-        <div class="title-banner">
-          <h2 style="margin: 0; font-size: 13pt; color: #0f172a;">لائحة المنشطين والمؤطرين (LISTE DES ANIMATEURS)</h2>
-          <div style="font-size: 8.5pt; color: #475569; margin-top: 2px;">
-            إجمالي المنشطين: <strong>${listToPrint.length}</strong> — نشطون: <strong>${listToPrint.filter((a) => a.status === 'نشط').length}</strong> — تأهيل تربوي: <strong>${listToPrint.filter((a) => a.activityType === 'التأهيل التربوي').length}</strong> — تأهيل مهني: <strong>${listToPrint.filter((a) => a.activityType === 'التأهيل المهني').length}</strong>
-          </div>
+      <div class="stats-badges">
+        <span>إجمالي المنشطين: <strong style="color: #0284c7;">${listToPrint.length}</strong></span>
+        <span>نشطون: <strong style="color: #0369a1;">${listToPrint.filter((a) => a.status === 'نشط').length}</strong></span>
+        <span>تأهيل تربوي: <strong style="color: #059669;">${listToPrint.filter((a) => a.activityType === 'التأهيل التربوي').length}</strong></span>
+        <span>تأهيل مهني: <strong style="color: #d97706;">${listToPrint.filter((a) => a.activityType === 'التأهيل المهني').length}</strong></span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 4%; text-align: center;">ت</th>
+            <th style="width: 10%; text-align: center;">الرقم التعريفي</th>
+            <th style="width: 20%;">الاسم الكامل</th>
+            <th style="width: 12%; text-align: center;">نوع النشاط</th>
+            <th style="width: 15%;">التخصص / المجال</th>
+            <th style="width: 12%;">الأقسام المسندة</th>
+            <th style="width: 12%;">الشعب المسندة</th>
+            <th style="width: 10%; text-align: center;">الهاتف</th>
+            <th style="width: 8%; text-align: center;">الحصص أسبوعياً</th>
+            <th style="width: 7%; text-align: center;">الوضعية</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 30px; display: flex; justify-content: space-between; text-align: center; font-size: 9.5pt; page-break-inside: avoid;">
+        <div>
+          <strong>توقيع منسق الأنشطة والتكوين</strong><br /><br /><br />
+          <span>...............................</span>
         </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 25px;">ت</th>
-              <th style="width: 70px;">الرقم</th>
-              <th style="width: 140px;">الاسم الكامل</th>
-              <th style="width: 80px;">نوع النشاط</th>
-              <th style="width: 130px;">التخصص / المجال</th>
-              <th style="width: 110px;">الأقسام</th>
-              <th style="width: 110px;">الشعب</th>
-              <th style="width: 85px;">الهاتف</th>
-              <th style="width: 80px;">الحصص أسبوعياً</th>
-              <th style="width: 70px;">الوضعية</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
-
-        <div class="signature-box">
-          <div>
-            <strong>توقيع منسق الأنشطة والتكوين</strong><br /><br /><br />
-            <span>...............................</span>
-          </div>
-          <div>
-            <strong>إدارة المركز / خاتم المؤسسة</strong><br /><br /><br />
-            <span>...............................</span>
-          </div>
+        <div>
+          <strong>إدارة المركز / خاتم المؤسسة</strong><br /><br /><br />
+          <span>...............................</span>
         </div>
-      </body>
-      </html>
+      </div>
     `;
-
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
-
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    }, 500);
   };
 
   const resetFilters = () => {
@@ -922,6 +816,16 @@ export const AnimatorManagement: React.FC<AnimatorManagementProps> = ({
         onConfirm={confirmConfig.onConfirm}
         onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
         type={confirmConfig.type}
+      />
+
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title="لائحة المنشطين والمؤطرين"
+        settings={settings}
+        printableBodyHtml={generatePrintableListHtml()}
+        defaultOrientation="landscape"
+        fileName={`لائحة_المنشطين_${settings.schoolYear.replace(/\s+/g, '_')}`}
       />
     </div>
   );

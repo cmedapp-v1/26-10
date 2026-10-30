@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   X, 
   UserCheck, 
@@ -19,6 +19,7 @@ import {
   FileText
 } from 'lucide-react';
 import { Animator, ScheduledSession, AppSettings } from '../types';
+import { PrintPreviewModal } from './PrintPreviewModal';
 
 interface AnimatorCardModalProps {
   isOpen: boolean;
@@ -39,6 +40,8 @@ export const AnimatorCardModal: React.FC<AnimatorCardModalProps> = ({
   settings,
   onEdit,
 }) => {
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+
   if (!isOpen || !animator) return null;
 
   // Find all sessions assigned to this animator
@@ -77,18 +80,10 @@ export const AnimatorCardModal: React.FC<AnimatorCardModalProps> = ({
   }, [assignedSessions]);
 
   const handlePrintCard = () => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    setIsPrintPreviewOpen(true);
+  };
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
+  const generateCardPrintableHtml = () => {
     const sessionsTableHtml = assignedSessions.length > 0 ? `
       <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9.5pt;">
         <thead>
@@ -116,152 +111,52 @@ export const AnimatorCardModal: React.FC<AnimatorCardModalProps> = ({
       </table>
     ` : '<p style="font-size: 10pt; color: #64748b; font-style: italic; margin-top: 6px;">لا توجد حصص مبرمجة حالياً في التخطيط الأسبوعي.</p>';
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <meta charset="utf-8" />
-        <title>بطاقة منشط - ${animator.arabicName}</title>
-        <style>
-          @page {
-            size: A4 portrait;
-            margin: 15mm 15mm 15mm 15mm;
-          }
-          body {
-            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-            color: #0f172a;
-            margin: 0;
-            padding: 0;
-            line-height: 1.4;
-          }
-          .header-box {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-          }
-          .title-banner {
-            background-color: #f8fafc;
-            border: 1.5px solid #0f172a;
-            text-align: center;
-            padding: 8px;
-            margin-bottom: 16px;
-            border-radius: 4px;
-          }
-          .section-title {
-            font-size: 11pt;
-            font-weight: bold;
-            background-color: #e2e8f0;
-            padding: 4px 8px;
-            border-right: 4px solid #1e3a8a;
-            margin-top: 14px;
-            margin-bottom: 8px;
-          }
-          .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            font-size: 10pt;
-          }
-          .item-row {
-            display: flex;
-            padding: 3px 0;
-            border-bottom: 1px dashed #e2e8f0;
-          }
-          .label {
-            font-weight: bold;
-            color: #475569;
-            width: 140px;
-          }
-          .value {
-            font-weight: 600;
-            color: #0f172a;
-            flex: 1;
-          }
-          .signature-box {
-            margin-top: 30px;
-            display: flex;
-            justify-content: space-between;
-            text-align: center;
-            font-size: 10pt;
-            page-break-inside: avoid;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header-box">
-          <div style="text-align: right; line-height: 1.35; font-size: 9.5pt;">
-            <div style="font-weight: bold; font-size: 10.5pt;">المملكة المغربية</div>
-            <div style="font-weight: bold; color: #334155;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
-            <div style="color: #475569;">الأكاديمية الجهوية للتربية والتكوين جهة الرباط - سلا - القنيطرة</div>
-            <div style="color: #475569;">المديرية الإقليمية بسيدي قاسم</div>
-          </div>
-          <div style="text-align: center;">
-            ${settings.ministryLogoDataURL ? `<img src="${settings.ministryLogoDataURL}" style="height: 60px; max-width: 140px; object-fit: contain;" alt="شعار الوزارة" />` : ''}
-          </div>
-          <div style="text-align: left; line-height: 1.35; font-size: 9.5pt;">
-            <div style="font-weight: bold; font-size: 10pt; color: #1e3a8a;">مركز الفرصة الثانية - الجيل الجديد زرارة</div>
-            <div style="color: #475569;">السنة الدراسية: ${settings.schoolYear}</div>
-            <div style="color: #64748b; font-size: 8.5pt;">تاريخ الإصدار: ${new Date().toLocaleDateString('ar-MA')}</div>
-          </div>
+    return `
+      <div class="header-title-box">
+        <h1>بطاقة تفصيلية لمنشط / مؤطر</h1>
+        <div class="meta-bar">
+          <span><strong>الرقم التعريفي:</strong> ${animator.registrationNumber}</span>
+          <span><strong>الوضعية:</strong> ${animator.status}</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+        <div style="border: 1px solid #cbd5e1; padding: 12px; border-radius: 8px; background: #f8fafc;">
+          <h3 style="margin-top: 0; font-size: 11pt; color: #1e3a8a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">1. البيانات الشخصية والمهنية</h3>
+          <p style="margin: 4px 0;"><strong>الاسم بالعربية:</strong> ${animator.arabicName}</p>
+          <p style="margin: 4px 0;"><strong>الاسم بالفرنسية:</strong> ${animator.frenchName || '-'}</p>
+          <p style="margin: 4px 0;"><strong>نوع النشاط:</strong> ${animator.activityType}</p>
+          <p style="margin: 4px 0;"><strong>التخصص:</strong> ${animator.specialty}</p>
         </div>
 
-        <div class="title-banner">
-          <h2 style="margin: 0; font-size: 14pt; color: #0f172a;">بطاقة المنشط / المؤطر (FICHE ANIMATEUR)</h2>
-          <div style="font-size: 9.5pt; color: #475569; margin-top: 4px;">الرقم التعريفي: <strong>${animator.registrationNumber}</strong> — الوضعية: <strong>${animator.status}</strong></div>
+        <div style="border: 1px solid #cbd5e1; padding: 12px; border-radius: 8px; background: #f8fafc;">
+          <h3 style="margin-top: 0; font-size: 11pt; color: #1e3a8a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">2. معلومات التواصل والاشتغال</h3>
+          <p style="margin: 4px 0;"><strong>رقم الهاتف:</strong> ${animator.phone}</p>
+          <p style="margin: 4px 0;"><strong>البريد الإلكتروني:</strong> ${animator.email || '-'}</p>
+          <p style="margin: 4px 0;"><strong>تاريخ بداية العمل:</strong> ${animator.startDate || '-'}</p>
+          <p style="margin: 4px 0;"><strong>الأقسام المسندة:</strong> ${animator.assignedClasses.join('، ') || 'غير محدد'}</p>
+          <p style="margin: 4px 0;"><strong>الشعب المسندة:</strong> ${animator.assignedStreams.join('، ') || 'غير محدد'}</p>
         </div>
+      </div>
 
-        <div class="section-title">1. المعلومات الشخصية والمهنية</div>
-        <div class="grid">
-          <div>
-            <div class="item-row"><span class="label">الاسم الكامل (عربي):</span><span class="value" style="font-size: 11pt; font-weight: bold;">${animator.arabicName}</span></div>
-            <div class="item-row"><span class="label">الاسم بالفرنسية:</span><span class="value" style="font-family: sans-serif;">${animator.frenchName || '-'}</span></div>
-            <div class="item-row"><span class="label">نوع النشاط:</span><span class="value" style="color: #1e3a8a; font-weight: bold;">${animator.activityType}</span></div>
-            <div class="item-row"><span class="label">التخصص / المجال:</span><span class="value" style="font-weight: bold;">${animator.specialty}</span></div>
-          </div>
-          <div>
-            <div class="item-row"><span class="label">الرقم التعريفي:</span><span class="value" style="font-family: monospace; font-weight: bold;">${animator.registrationNumber}</span></div>
-            <div class="item-row"><span class="label">رقم الهاتف:</span><span class="value" style="font-family: monospace;">${animator.phone}</span></div>
-            <div class="item-row"><span class="label">البريد الإلكتروني:</span><span class="value" style="font-family: sans-serif;">${animator.email || '-'}</span></div>
-            <div class="item-row"><span class="label">تاريخ بداية العمل:</span><span class="value">${animator.startDate}</span></div>
-          </div>
+      ${animator.notes ? `<div style="padding: 8px 12px; background: #fffbe2; border: 1px solid #fde047; border-radius: 6px; margin-bottom: 16px; font-size: 9.5pt;"><strong>ملاحظات إدارية:</strong> ${animator.notes}</div>` : ''}
+
+      <div style="font-weight: bold; font-size: 11pt; color: #0f172a; margin-top: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 4px;">
+        3. التوزيع الأسبوعي للحصص (${assignedSessions.length} حصص — حوالي ${weeklyHours} ساعة أسبوعياً)
+      </div>
+      ${sessionsTableHtml}
+
+      <div style="margin-top: 35px; display: flex; justify-content: space-between; text-align: center; font-size: 10pt; page-break-inside: avoid;">
+        <div>
+          <strong>توقيع المنشط(ة)</strong><br /><br /><br />
+          <span>...............................</span>
         </div>
-
-        <div class="section-title">2. الأقسام والشعب المسندة</div>
-        <div class="item-row"><span class="label">الأقسام المسندة:</span><span class="value">${animator.assignedClasses.join('، ') || 'غير محدد'}</span></div>
-        <div class="item-row"><span class="label">الشعب المسندة:</span><span class="value">${animator.assignedStreams.join('، ') || 'غير محدد'}</span></div>
-        ${animator.notes ? `<div class="item-row"><span class="label">ملاحظات إدارية:</span><span class="value">${animator.notes}</span></div>` : ''}
-
-        <div class="section-title">3. الحصص المبرمجة أسبوعياً (${assignedSessions.length} حصص — حوالي ${weeklyHours} ساعة أسبوعياً)</div>
-        ${sessionsTableHtml}
-
-        <div class="signature-box">
-          <div>
-            <strong>توقيع المنشط(ة)</strong><br /><br /><br />
-            <span>...............................</span>
-          </div>
-          <div>
-            <strong>إدارة المركز / خاتم المؤسسة</strong><br /><br /><br />
-            <span>...............................</span>
-          </div>
+        <div>
+          <strong>إدارة المركز / خاتم المؤسسة</strong><br /><br /><br />
+          <span>...............................</span>
         </div>
-      </body>
-      </html>
+      </div>
     `;
-
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
-
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    }, 500);
   };
 
   const getStatusBadge = (status: string) => {
@@ -559,6 +454,13 @@ export const AnimatorCardModal: React.FC<AnimatorCardModalProps> = ({
           </button>
           <div className="flex items-center gap-2">
             <button
+              onClick={handlePrintCard}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 rounded-xl text-xs font-bold transition shadow-md"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>معاينة وطباعة A4</span>
+            </button>
+            <button
               onClick={() => onEdit(animator)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/20"
             >
@@ -568,6 +470,16 @@ export const AnimatorCardModal: React.FC<AnimatorCardModalProps> = ({
           </div>
         </div>
       </div>
+
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title={`بطاقة المنشط - ${animator.arabicName}`}
+        settings={settings}
+        printableBodyHtml={generateCardPrintableHtml()}
+        defaultOrientation="portrait"
+        fileName={`بطاقة_المنشط_${animator.arabicName.replace(/\s+/g, '_')}`}
+      />
     </div>
   );
 };
